@@ -10,9 +10,7 @@ public class SupplyStats {
         }
 
         String faction = factionStr.toUpperCase(Locale.ROOT).trim();
-        try {
-            MemberUtils.Faction f = MemberUtils.Faction.valueOf(faction);
-        } catch (IllegalArgumentException e) {
+        if (!MemberUtils.isFaction(faction,true)) {
             return "Неверно указана фракция.";
         }
 

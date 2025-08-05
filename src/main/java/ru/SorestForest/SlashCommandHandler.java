@@ -19,12 +19,13 @@ import net.dv8tion.jda.internal.utils.tuple.Pair;
 import org.jetbrains.annotations.NotNull;
 
 import java.awt.*;
+import java.net.Proxy;
+import java.time.LocalTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 
-import static ru.SorestForest.Settings.CRIME_ROLE_ID;
-import static ru.SorestForest.Settings.STATE_ROLE_ID;
+import static ru.SorestForest.Settings.*;
 
 public class SlashCommandHandler extends ListenerAdapter {
 
@@ -46,16 +47,16 @@ public class SlashCommandHandler extends ListenerAdapter {
     }
 
     private void handleCancel(SlashCommandInteractionEvent event) {
+        event.deferReply(true).queue();
         if (!MemberUtils.isModerator(Objects.requireNonNull(event.getMember()))) {
-            event.reply("Команда доступна только модераторам.").setEphemeral(true).queue();
+            event.getHook().sendMessage("Команда доступна только модераторам.").queue();
             return;
         }
         if (!event.getChannelType().isThread()) {
-            event.reply("Команда подразумевает использование в ветке поставки.").setEphemeral(true).queue();
+            event.getHook().sendMessage("Команда подразумевает использование в ветке поставки.").queue();
             return;
         }
 
-        event.deferReply().queue();
         event.getChannel().asThreadChannel().retrieveParentMessage().queue(parentMessage -> {
             SupplyManager.Supply supply = getSupplyFromParent(event, parentMessage);
             if (supply == null) return;
@@ -68,13 +69,11 @@ public class SlashCommandHandler extends ListenerAdapter {
     }
 
     private void handleSave(SlashCommandInteractionEvent event) {
+        event.deferReply(true).queue();
         if (!MemberUtils.isModerator(Objects.requireNonNull(event.getMember()))) {
-            event.reply("Команда доступна только модераторам.").setEphemeral(true).queue();
+            event.getHook().sendMessage("Команда доступна только модераторам.").queue();
             return;
         }
-
-        event.deferReply(true).queue();
-
         try {
             SupplyManager.saveData();
             event.getHook().sendMessage("Данные успешно сохранены.").queue();
@@ -85,50 +84,121 @@ public class SlashCommandHandler extends ListenerAdapter {
     }
 
     private void handleStandardSupply(SlashCommandInteractionEvent event, SupplyManager.SupplyType type) {
-        if (!checkSupplierPermissions(event)) return;
-
+        event.deferReply(false).queue();
+        if (validatePermissions(event)) return;
+        if (!MemberUtils.isInFaction(event.getMember(), type == SupplyManager.SupplyType.NG ? MemberUtils.Faction.NG : MemberUtils.Faction.EMS)) {
+            event.getHook().sendMessage("Отпись поставок NG и EMS невозможно без соответствующей роли").queue();
+            return;
+        }
         String faction = event.getOption("faction", OptionMapping::getAsString);
         String time = event.getOption("time", OptionMapping::getAsString);
         int amount = event.getOption("amount", OptionMapping::getAsInt);
+        assert time != null;
+        String[] parts = time.split(":");
+        int hours = Integer.parseInt(parts[0]);
+        int minutes = Integer.parseInt(parts[1]);
+        if (Settings.isBetween(hours, minutes, 18, 30, 19, 30)) {
+            event.getHook().sendMessage("В данное время нельзя заказать поставку.").queue();
+            return;
+        }
         SupplyManager.Supply supply = SupplyManager.newSupply(type, time, amount, faction);
-        event.reply(buildMessage(supply)).queue(hook -> hook.retrieveOriginal().queue(sentMessage -> {
+        boolean afkStatus = Boolean.TRUE.equals(event.getOption("afk", OptionMapping::getAsBoolean));
+        if (afkStatus) {
+            supply.afk = true;
+            supply.result = "";
+        }
+        int check = validateTime(event, time, supply);
+        if (check == 0 && !MemberUtils.isModerator(Objects.requireNonNull(event.getMember()))) return;
+        event.getHook().sendMessage(buildMessage(supply, check == 1)).queue(sentMessage -> {
             SupplyManager.registerSupply(sentMessage.getId(), supply);
             assert faction != null;
-            sentMessage.createThreadChannel(type.name().toLowerCase() + "-" + faction.toLowerCase() + "-" + sentMessage.getId())
+            sentMessage.createThreadChannel(type.name().toLowerCase() + "-" + faction.toLowerCase())
                     .queue(thread -> thread.sendMessage("Ветка создана для обсуждения поставки " + type.name() + " для " + faction + ".").queue());
-        }));
+        });
     }
 
     private void handleSpankSupply(SlashCommandInteractionEvent event) {
-        if (!checkSupplierPermissions(event)) return;
-
+        event.deferReply(false).queue();
+        if (validatePermissions(event)) return;
+        boolean hasMafiaRole = false;
+        for (MemberUtils.Faction f : MemberUtils.Faction.values()) {
+            if (f.isMafia() && MemberUtils.isInFaction(Objects.requireNonNull(event.getMember()), f)) {
+                hasMafiaRole = true;
+                break;
+            }
+        }
+        if (!hasMafiaRole) {
+            event.getHook().sendMessage("Отпись поставок SPANK невозможно без соответствующей роли любой мафии.").queue();
+            return;
+        }
         String faction = event.getOption("faction", OptionMapping::getAsString);
         String time = event.getOption("time", OptionMapping::getAsString);
         int amount = event.getOption("amount", OptionMapping::getAsInt);
         String dest = event.getOption("destination", OptionMapping::getAsString);
         assert faction != null;
-
         SupplyManager.SupplyType type = resolve(faction);
         if (type == null) {
-            event.reply("Неверно указана фракция заказчика.").setEphemeral(true).queue();
+            event.getHook().sendMessage("Неверно указана фракция заказчика.").queue();
+            return;
+        }
+        if (!MemberUtils.isFaction(dest, true)) {
+            event.getHook().sendMessage("Неверно указана фракция назначения").queue();
             return;
         }
 
         SupplyManager.Supply supply = SupplyManager.newSupply(type, time, amount, dest);
-        event.reply(buildMessage(supply)).queue(hook -> hook.retrieveOriginal().queue(sentMessage -> {
+        boolean afkStatus = Boolean.TRUE.equals(event.getOption("afk", OptionMapping::getAsBoolean));
+        if (afkStatus) {
+            supply.afk = true;
+            supply.result = "";
+        }
+        int check = validateTime(event, time, supply);
+        if (check == 0 && !MemberUtils.isModerator(Objects.requireNonNull(event.getMember()))) return;
+        event.getHook().sendMessage(buildMessage(supply, check == 1)).queue(sentMessage -> {
             SupplyManager.registerSupply(sentMessage.getId(), supply);
-            sentMessage.createThreadChannel("spank-" + faction.toLowerCase() + "(" + dest + ")-" + sentMessage.getId())
+            sentMessage.createThreadChannel("spank-" + faction.toLowerCase() + "(" + dest + ")")
                     .queue(thread -> thread.sendMessage("Ветка создана для обсуждения поставки SPANK для " + dest + " от " + faction + ".").queue());
-        }));
+        });
+    }
+
+    private int validateTime(SlashCommandInteractionEvent event, String time, SupplyManager.Supply supply) {
+        if (time == null || !time.matches("^\\d{2}:\\d{2}$")) {
+            event.getHook().sendMessage("Ошибка: неверный формат времени. Ожидается HH:mm.").queue();
+            return 0;
+        }
+        String[] parts = time.split(":");
+        int hours, minutes;
+        try {
+            hours = Integer.parseInt(parts[0]);
+            minutes = Integer.parseInt(parts[1]);
+        } catch (NumberFormatException e) {
+            event.getHook().sendMessage("Ошибка: неверный числовой формат.").queue();
+            return 0;
+        }
+        if (hours < 0 || hours >= 23 || minutes < 0 || minutes >= 60) {
+            event.getHook().sendMessage("Ошибка: часы или минуты вне допустимого диапазона.").queue();
+            return 0;
+        }
+        LocalTime enteredTime = LocalTime.of(hours, minutes);
+        LocalTime moscowTime = Settings.getMoscowTime();
+        if (!enteredTime.isAfter(moscowTime)) {
+            event.getHook().sendMessage("Ошибка: время должно быть позже текущего московского времени.").queue();
+            return 0;
+        }
+        if (!(Settings.isBetween(hours, minutes, 13, 0, 15, 0) || Settings.isBetween(hours, minutes, 21, 0, 22, 0)) && supply.afk) {
+            return 1;
+        }
+        return 2;
     }
 
     private void handleRollResult(SlashCommandInteractionEvent event) {
+        event.deferReply(true).queue();
         if (!event.getChannelType().isThread()) {
-            event.reply("Команда подразумевает использование в ветке поставки.").setEphemeral(true).queue();
+            event.getHook().sendMessage("Команда подразумевает использование в ветке поставки.").queue();
             return;
         }
 
-        event.deferReply(true).queue();
+
         event.getChannel().asThreadChannel().retrieveParentMessage().queue(parentMessage -> {
             SupplyManager.Supply supply = getSupplyFromParent(event, parentMessage);
             if (supply == null) return;
@@ -164,8 +234,6 @@ public class SlashCommandHandler extends ListenerAdapter {
             supply.winner = winner;
             supply.result = result;
             supply.ended = true;
-            supply.afk = result.toLowerCase().contains("afk");
-
             updateEmbed(parentMessage.getId(), supply);
             event.getHook().sendMessage("Данные о поставке обновлены, GG, WP!").queue();
         });
@@ -192,7 +260,7 @@ public class SlashCommandHandler extends ListenerAdapter {
                 return;
             }
 
-            switch (key) {
+            switch (Objects.requireNonNull(key)) {
                 case "faction" -> supply.faction = value;
                 case "time" -> supply.time = value;
                 case "amount" -> {
@@ -210,8 +278,7 @@ public class SlashCommandHandler extends ListenerAdapter {
                     supply.result = value;
                     supply.afk = value != null && value.toLowerCase().contains("afk");
                 }
-
-                case null, default -> {
+                default -> {
                     event.getHook().sendMessage("Не удалось распознать ключ.").queue();
                     return;
                 }
@@ -226,7 +293,7 @@ public class SlashCommandHandler extends ListenerAdapter {
     // Ключ — ID пользователя (модератора), значение — фракция для очистки
 
     private void handleCleanMembers(SlashCommandInteractionEvent event) {
-        if (!MemberUtils.isModerator(event.getMember())) {
+        if (!MemberUtils.isModerator(Objects.requireNonNull(event.getMember()))) {
             event.reply("Команда доступна только модераторам.").setEphemeral(true).queue();
             return;
         }
@@ -302,16 +369,16 @@ public class SlashCommandHandler extends ListenerAdapter {
         event.reply(statsMessage).queue();
     }
 
-    private boolean checkSupplierPermissions(SlashCommandInteractionEvent event) {
+    private boolean validatePermissions(SlashCommandInteractionEvent event) {
         if (!MemberUtils.isSupplier(Objects.requireNonNull(event.getMember())) && !MemberUtils.isModerator(event.getMember())) {
-            event.reply("Недостаточно прав для отписи поставки. Требуется роль отписи.").setEphemeral(true).queue();
-            return false;
+            event.getHook().sendMessage("Недостаточно прав для отписи поставки. Требуется роль отписи.").queue();
+            return true;
         }
         if (!Settings.REPORT_CHANNEL_ID.equals(event.getChannelId())) {
-            event.reply("Невозможно отписать поставку не из канала отписей.").setEphemeral(true).queue();
-            return false;
+            event.getHook().sendMessage("Невозможно отписать поставку не из канала отписей.").queue();
+            return true;
         }
-        return true;
+        return false;
     }
 
     private SupplyManager.Supply getSupplyFromParent(SlashCommandInteractionEvent event, Message parentMessage) {
@@ -345,18 +412,24 @@ public class SlashCommandHandler extends ListenerAdapter {
                         "Нападают: " + supply.attack + "\n" +
                         "Итог: " + supply.result
         );
+        if (supply.afk) {
+            builder.appendDescription("\nАФК Поставка");
+        }
         return builder.build();
     }
 
-    private MessageCreateData buildMessage(SupplyManager.Supply supply) {
+    private MessageCreateData buildMessage(SupplyManager.Supply supply, boolean pingModerators) {
         MessageEmbed embed = buildEmbed(supply);
         MessageCreateBuilder builder = new MessageCreateBuilder();
         builder.setEmbeds(embed);
         String message = String.format("<@&%s> <@&%s>", CRIME_ROLE_ID, STATE_ROLE_ID);
+        if (pingModerators){
+            message += " ";
+            message += String.format("<@&%s>", MODERATOR_ROLE_ID);
+        }
         builder.setContent(message);
         return builder.build();
     }
-
 
     private void updateEmbed(String messageID, SupplyManager.Supply supply) {
         SupplyManager.SUPPLY_CHANNEL.retrieveMessageById(messageID)

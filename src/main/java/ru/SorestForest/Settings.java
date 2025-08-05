@@ -1,5 +1,8 @@
 package ru.SorestForest;
 
+import java.time.LocalTime;
+import java.time.ZoneId;
+
 public class Settings {
 
     public static final String TOKEN = "MTQwMTY0NjY2NTY3NjYyMDAxOA.GlGSML.ZB3QASzvcbQvM7cQn5kz6u5atAmXuAg8WxBsWc";
@@ -13,6 +16,7 @@ public class Settings {
     public static final String DEPLEADER_ROLE_ID = "1401990525346648064";
     public static final String CRIME_ROLE_ID = "1401999540084543631";
     public static final String STATE_ROLE_ID = "1401999584061952020";
+    public static final String DEVELOPER_ROLE_ID = "1401884851040419981";
 
     public static String LSV_ID = "1401888085473755247";
     public static String ESB_ID = "1401888108915593297";
@@ -31,6 +35,17 @@ public class Settings {
     public static String NG_ID = "1401887979043291247";
     public static String EMS_ID = "1401887953013178398";
     public static String SASPA_ID = "1401887938408742982";
+
+    public static LocalTime getMoscowTime() {
+        return LocalTime.now(ZoneId.of("Europe/Moscow"));
+    }
+
+    public static boolean isBetween(int hours, int minutes, int lh, int lm, int rh, int rm) {
+        LocalTime left = LocalTime.of(lh, lm);
+        LocalTime right = LocalTime.of(rh, rm);
+        LocalTime now = LocalTime.of(hours, minutes);
+        return !now.isBefore(left) && !now.isAfter(right);
+    }
 
     /*
     * Код ошибки 01 - Slash Command Handler

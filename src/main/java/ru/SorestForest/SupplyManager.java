@@ -108,7 +108,7 @@ public class SupplyManager {
         }
 
         // Повторно считываем оставшиеся файлы
-        files = dir.listFiles((_, name) -> name.startsWith("supply_") && name.endsWith(".json"));
+        files = dir.listFiles((d, name) -> name.startsWith("supply_") && name.endsWith(".json"));
         if (files == null || files.length == 0) {
             System.out.println("Файлы сохранения не найдены (после очистки).");
             return;

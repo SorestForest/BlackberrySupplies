@@ -31,3 +31,14 @@ dependencies {
 tasks.test {
     useJUnitPlatform()
 }
+
+tasks.jar {
+    manifest {
+        attributes["Main-Class"] = "ru.SorestForest.Main"
+    }
+    // Включить все зависимости в JAR (опционально, если нужен fat jar)
+    from({
+        configurations.runtimeClasspath.get().filter { it.name.endsWith("jar") }.map { zipTree(it) }
+    })
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
