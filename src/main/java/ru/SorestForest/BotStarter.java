@@ -11,9 +11,6 @@ import net.dv8tion.jda.api.interactions.commands.build.OptionData;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.requests.restaction.CommandListUpdateAction;
 
-import java.io.PrintStream;
-import java.nio.charset.StandardCharsets;
-
 
 public class BotStarter {
 
@@ -21,7 +18,7 @@ public class BotStarter {
 
     public static void startBot() throws InterruptedException {
         System.out.println("Starting API...");
-        API = JDABuilder.createDefault(Settings.TOKEN)
+        API = JDABuilder.createDefault(System.getenv("BOT_TOKEN"))
                 .enableIntents(GatewayIntent.MESSAGE_CONTENT, GatewayIntent.GUILD_MESSAGES, GatewayIntent.GUILD_MEMBERS, GatewayIntent.GUILD_PRESENCES)
                 .addEventListeners(new SlashCommandHandler())
                 .build();

@@ -5,7 +5,7 @@ import java.time.ZoneId;
 
 public class Settings {
 
-    public static final String TOKEN = "MTQwMTY0NjY2NTY3NjYyMDAxOA.GlGSML.ZB3QASzvcbQvM7cQn5kz6u5atAmXuAg8WxBsWc";
+
     public static final String SELF_ID = "1401646665676620018";
 
     public static final String REPORT_CHANNEL_ID = "1401884769343504485";
