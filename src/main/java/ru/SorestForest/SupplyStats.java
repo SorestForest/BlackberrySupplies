@@ -1,63 +1,103 @@
 package ru.SorestForest;
 
+import net.dv8tion.jda.api.EmbedBuilder;
+import net.dv8tion.jda.api.entities.MessageEmbed;
+
+import java.awt.*;
+import java.time.Instant;
 import java.util.Locale;
 
 public class SupplyStats {
 
-    public static String calculateStats(String factionStr) {
+    public static MessageEmbed calculateStats(String factionStr) {
         if (factionStr == null || factionStr.isEmpty()) {
-            return "Фракция не указана.";
+            return errorEmbed("Фракция не указана.");
         }
 
         String faction = factionStr.toUpperCase(Locale.ROOT).trim();
-        if (!MemberUtils.isFaction(faction,true)) {
-            return "Неверно указана фракция.";
+        if (!MemberUtils.isFaction(faction, true)) {
+            return errorEmbed("Неверно указана фракция.");
         }
 
-        int totalOrganized = 0;
-        int wonOrganized = 0;
-        int lostOrganized = 0;
-        int afkOrganized = 0;
+        MemberUtils.Faction f = MemberUtils.Faction.valueOf(faction);
 
-        int totalParticipated = 0;
-        int wonParticipated = 0;
-        int lostParticipated = 0;
+        int totalOrganized = 0;
+        int afkDelivered = 0;
+
+        int defended = 0;
+        int defendedWon = 0;
+        int defendedLost = 0;
+
+        int attacked = 0;
+        int attackedWon = 0;
+        int attackedLost = 0;
+
         for (var entry : SupplyManager.data.entrySet()) {
             SupplyManager.Supply supply = entry.getValue();
+            if (!supply.ended) continue;
 
-            if (!supply.ended) continue; // учитываем только завершённые поставки
+            boolean isDestination = f.equals(supply.destination);
+            boolean isDefender = supply.defenders != null && supply.defenders.contains(f);
+            boolean isAttacker = supply.attackers != null && supply.attackers.contains(f);
 
-            boolean isOrganizer = supply.faction.equalsIgnoreCase(faction);
-            boolean participated = isOrganizer || (supply.attack != null && supply.attack.toUpperCase(Locale.ROOT).contains(faction));
-
-            if (!participated) continue;
-
-            if (isOrganizer) {
+            // 1. Организованные поставки
+            if (isDestination) {
                 totalOrganized++;
-                if (supply.afk) afkOrganized++;
-                else if (Boolean.TRUE.equals(supply.winner)) wonOrganized++;
-                else lostOrganized++;
-            } else {
-                totalParticipated++;
-                if (Boolean.FALSE.equals(supply.winner)) wonParticipated++;
-                else lostParticipated++;
+                if (supply.afk) afkDelivered++;
+            }
+
+            // 2. Защита
+            if (isDefender) {
+                defended++;
+                if (Boolean.TRUE.equals(supply.defenderWin)) defendedWon++;
+                else defendedLost++;
+            }
+
+            // 3. Атака
+            if (isAttacker) {
+                attacked++;
+                if (Boolean.FALSE.equals(supply.defenderWin)) attackedWon++;
+                else attackedLost++;
             }
         }
 
-        return String.format(
-                "**Статистика по фракции %s (за последние 7 дней):**\n\n" +
-                        "__Организованные поставки:__\n" +
-                        "Всего: %d\n" +
-                        "Выиграно: %d\n" +
-                        "Проиграно: %d\n" +
-                        "AFK: %d\n\n" +
-                        "__Участие в других поставках:__\n" +
-                        "Всего: %d\n" +
-                        "Выиграно: %d\n" +
-                        "Проиграно: %d\n",
-                faction,
-                totalOrganized, wonOrganized, lostOrganized, afkOrganized,
-                totalParticipated, wonParticipated, lostParticipated
-        );
+        EmbedBuilder embed = new EmbedBuilder()
+                .setTitle("📦 Статистика по фракции " + f.displayName())
+                .setColor(f.color())
+                .setDescription("Период: **последние 7 дней**")
+                .setTimestamp(Instant.now());
+
+        embed.addField("__Организованные поставки__", String.format(
+                "Всего: **%d**\nAFK: **%d**",
+                totalOrganized, afkDelivered
+        ), false);
+
+        embed.addField("__Участие в защите__", String.format(
+                "Всего: **%d**\n" +
+                        "Успешно %s: **%d**\n" +
+                        "Провалено %s: **%d**",
+                defended, EmojiUtils.YES_EMOJI, defendedWon,
+                EmojiUtils.NO_EMOJI, defendedLost
+        ), false);
+
+        embed.addField("__Участие в атаке__", String.format(
+                "Всего: **%d**\n" +
+                        "Успешно %s: **%d**\n" +
+                        "Провалено %s: **%d**",
+                attacked, EmojiUtils.YES_EMOJI, attackedWon,
+                EmojiUtils.NO_EMOJI, attackedLost
+        ), false);
+
+        return embed.build();
+    }
+
+
+    private static MessageEmbed errorEmbed(String message) {
+        return new EmbedBuilder()
+                .setColor(Color.RED)
+                .setTitle("Ошибка")
+                .setDescription(message)
+                .setTimestamp(Instant.now())
+                .build();
     }
 }

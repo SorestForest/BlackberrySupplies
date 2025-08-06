@@ -16,9 +16,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.HashMap;
+import java.util.*;
 
 public class SupplyManager {
 
@@ -26,14 +24,6 @@ public class SupplyManager {
 
     public static TextChannel SUPPLY_CHANNEL;
     public static TextChannel NEWS_CHANNEL;
-
-    public static Supply newSupply(SupplyType type, String time, int amount, String faction){
-        Supply supply = new Supply(type,time,amount,faction);
-        supply.map = "Не выбрана";
-        supply.result = "В процессе..";
-        supply.attack = "Не выбрана";
-        return supply;
-    }
 
     public static void registerSupply(String messageID, Supply supply) {
         data.put(messageID, supply);
@@ -139,31 +129,48 @@ public class SupplyManager {
         public SupplyType type;
         public String time;
         public int amount;
-        public String faction;
+        public MemberUtils.Faction destination;
+        public List<MemberUtils.Faction> defenders; // Изменено здесь
         public String map;
         public String result;
-        public String attack;
+        public List<MemberUtils.Faction> attackers;
         public boolean ended;
         public boolean afk;
-        public Boolean winner;  // true = выиграл заказчик, false = выиграли нападающие
+        public Boolean defenderWin;
 
-        public Supply(SupplyType type, String time, int amount, String faction) {
+        public Supply(SupplyType type, String time, int amount, String defendersStr, MemberUtils.Faction destination) {
             this.type = type;
             this.time = time;
+            this.destination = destination;
             this.amount = amount;
-            this.faction = faction;
+            this.defenders = MemberUtils.parseFactions(defendersStr).r;
             this.map = "Не выбрана";
             this.result = "В процессе..";
-            this.attack = "Не выбрана";
+            this.attackers = new ArrayList<>();
             this.ended = false;
             this.afk = false;
-            this.winner = null;
+            this.defenderWin = null;
+        }
+
+        public String getDefendersDisplay(boolean newLine) {
+            return defenders.stream()
+                    .map(MemberUtils.Faction::displayName)
+                    .reduce((a, b) -> a + (newLine ? "\n" : " ") + b)
+                    .orElse("Не указано");
+        }
+
+        public String getAttackersDisplay(boolean newLine) {
+            return attackers.stream()
+                    .map(MemberUtils.Faction::displayName)
+                    .reduce((a, b) -> a + (newLine ? "\n" : " ") + b)
+                    .orElse("Не указано");
         }
     }
 
 
+
     public enum SupplyType {
-        EMS, NG, SPANK_MM, SPANK_LCN, SPANK_RM, SPANK_YAK, SPANK_AM;
+        EMS, NG, SPANK_MM, SPANK_LCN, SPANK_RM, SPANK_YAK, SPANK_AM, SPANK_BLANK;
 
         public MemberUtils.Faction faction() {
             return switch(this) {
@@ -174,11 +181,25 @@ public class SupplyManager {
                 case SPANK_RM -> MemberUtils.Faction.RM;
                 case SPANK_YAK -> MemberUtils.Faction.YAK;
                 case SPANK_AM -> MemberUtils.Faction.AM;
+                case SPANK_BLANK -> null;
             };
         }
 
         public String displayName(){
             return toString().replace("_"," ");
+        }
+
+        public boolean isOrganizer(MemberUtils.Faction f) {
+            return switch(this){
+                case EMS -> f == MemberUtils.Faction.EMS;
+                case NG -> f == MemberUtils.Faction.NG;
+                case SPANK_MM -> f == MemberUtils.Faction.MM;
+                case SPANK_LCN -> f == MemberUtils.Faction.LCN;
+                case SPANK_RM -> f == MemberUtils.Faction.RM;
+                case SPANK_YAK -> f == MemberUtils.Faction.YAK;
+                case SPANK_AM -> f == MemberUtils.Faction.AM;
+                case SPANK_BLANK -> false;
+            };
         }
     }
 

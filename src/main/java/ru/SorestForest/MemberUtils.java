@@ -3,7 +3,12 @@ package ru.SorestForest;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Role;
 
+import java.awt.*;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static ru.SorestForest.Settings.*;
 
@@ -78,15 +83,49 @@ public class MemberUtils {
 
     public static boolean isFaction(String faction, boolean ignoreCase) {
         if (ignoreCase) {
-            faction = faction.toUpperCase();
+            faction = faction.toUpperCase().trim();
         }
         for (Faction f : Faction.values()) {
-            if (f.name().equals(faction)) {
+            if (f.name().equalsIgnoreCase(faction)) {
                 return true;
             }
         }
         return false;
     }
+
+    public static Faction toFaction(String string) {
+        for (Faction value : Faction.values()) {
+            if (value.name().equalsIgnoreCase(string)){
+                return value;
+            }
+        }
+        return null;
+    }
+
+    public static ForestPair<Boolean, List<Faction>> parseFactions(String input) {
+        if (input == null || input.isBlank()) return ForestPair.of(false, List.of());
+        AtomicBoolean shouldBreak = new AtomicBoolean(false);
+        try {
+            List<Faction> factions = Arrays.stream(input.split(","))
+                    .map(String::trim)
+                    .map(s -> {
+                        for (MemberUtils.Faction f : MemberUtils.Faction.values()) {
+                            if (f.name().equalsIgnoreCase(s)) return f;
+                        }
+                        shouldBreak.set(true);
+                        return null;
+                    })
+                    .filter(Objects::nonNull)
+                    .toList();
+            if(shouldBreak.get()) {
+                return ForestPair.of(false, factions);
+            }
+            return ForestPair.of(true, factions);
+        } catch (Exception e){
+            return ForestPair.of(false, List.of());
+        }
+    }
+
 
     public enum Faction {
         MM, RM, AM, LCN, YAK, FAM, LSV, ESB, BSG, MG13, FIB, LSPD, LSSD, GOV, NG, SASPA, EMS;
@@ -115,30 +154,58 @@ public class MemberUtils {
 
         public String displayName() {
             return switch(this) {
-                case MM -> "Mexican Mafia";
-                case RM -> "Russian Mafia";
-                case AM -> "Armenian Mafia";
-                case LCN -> "La Cosa Nostra";
-                case YAK -> "Yakudza";
-                case FAM -> "The Families";
-                case LSV -> "Los Santos Vagos";
-                case ESB -> "East Side Ballas";
-                case BSG -> "Bloods Street Gang";
-                case MG13 -> "Marabunta Grande";
-                case FIB -> "FIB";
-                case LSPD -> "LSPD";
-                case LSSD -> "LSSD";
-                case GOV -> "GOV";
-                case NG -> "NG";
-                case SASPA -> "SASPA";
-                case EMS -> "EMS";
+                case MM -> EmojiUtils.MM_EMOJI + " Mexican Mafia";
+                case RM -> EmojiUtils.RM_EMOJI + " Russian Mafia";
+                case AM -> EmojiUtils.AM_EMOJI + " Armenian Mafia";
+                case LCN -> EmojiUtils.LCN_EMOJI + " La Cosa Nostra";
+                case YAK -> EmojiUtils.YAK_EMOJI + " Yakudza";
+                case FAM -> EmojiUtils.FAM_EMOJI + " The Families";
+                case LSV -> EmojiUtils.LSV_EMOJI + " Los Santos Vagos";
+                case ESB -> EmojiUtils.ESB_EMOJI + " East Side Ballas";
+                case BSG -> EmojiUtils.BSG_EMOJI + " Bloods Street Gang";
+                case MG13 -> EmojiUtils.MG13_EMOJI + " Marabunta Grande";
+                case FIB -> EmojiUtils.FIB_EMOJI + " FIB";
+                case LSPD -> EmojiUtils.LSPD_EMOJI + " LSPD";
+                case LSSD -> EmojiUtils.LSSD_EMOJI + " LSSD";
+                case GOV -> EmojiUtils.GOV_EMOJI + " GOV";
+                case NG -> EmojiUtils.NG_EMOJI + " NG";
+                case SASPA -> EmojiUtils.SASPA_EMOJI + " SASPA";
+                case EMS -> EmojiUtils.EMS_EMOJI + " EMS";
             };
         }
+
 
         public boolean isMafia(){
             return switch (this) {
                 case AM, RM, YAK, LCN, MM -> true;
                 default -> false;
+            };
+        }
+
+        public Color color() {
+            return switch (this) {
+                // Мафии — тёмные насыщенные цвета
+                case MM -> new Color(0x8B0000);      // тёмно-красный (кровавый)
+                case RM -> new Color(0x2F4F4F);      // dark slate gray
+                case AM -> new Color(0x4B0082);      // индиго
+                case LCN -> new Color(0x191970);     // midnight blue
+                case YAK -> new Color(0x800000);     // бордовый
+
+                // Уличные банды — яркие узнаваемые цвета
+                case FAM -> new Color(0x00FF00);     // ярко-зелёный
+                case LSV -> new Color(0xFFFF00);     // ярко-жёлтый
+                case ESB -> new Color(0x800080);     // фиолетовый (Ballas стиль)
+                case BSG -> new Color(0xB22222);     // firebrick красный
+                case MG13 -> new Color(0x1E90FF);    // dodger blue
+
+                // Гос. структуры — официальные, строгие оттенки
+                case FIB -> new Color(0x00008B);     // тёмно-синий
+                case LSPD -> new Color(0x4169E1);    // royal blue
+                case LSSD -> new Color(0x228B22);    // forest green
+                case GOV -> new Color(0x708090);     // slate gray
+                case NG -> new Color(0x556B2F);      // dark olive green
+                case SASPA -> new Color(0x2E8B57);   // sea green
+                case EMS -> new Color(0xDC143C);     // crimson
             };
         }
     }

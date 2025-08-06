@@ -36,6 +36,13 @@ public class Settings {
     public static String EMS_ID = "1401887953013178398";
     public static String SASPA_ID = "1401887938408742982";
 
+    public static final String NG_COMMAND = "поставка-нг";
+    public static final String EMS_COMMAND = "поставка-емс";
+    public static final String SPANK_COMMAND = "поставка-спанк";
+    public static final String ROLL_COMMAND = "ролл";
+    public static final String RESULT_COMMAND = "результат";
+    public static final String STATS_COMMAND = "статистика";
+
     public static LocalTime getMoscowTime() {
         return LocalTime.now(ZoneId.of("Europe/Moscow"));
     }
