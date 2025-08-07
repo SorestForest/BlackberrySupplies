@@ -8,6 +8,7 @@ import net.dv8tion.jda.api.interactions.commands.DefaultMemberPermissions;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.interactions.commands.build.OptionData;
+import net.dv8tion.jda.api.interactions.commands.build.SubcommandData;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.requests.restaction.CommandListUpdateAction;
 
@@ -20,7 +21,7 @@ public class BotStarter {
 
     public static void startBot() throws InterruptedException {
         System.out.println("Starting API...");
-        API = JDABuilder.createDefault(System.getenv("BOT_TOKEN"))
+        API = JDABuilder.createDefault(System.getenv("BLACKBERRY_BOT_TOKEN"))
                 .enableIntents(GatewayIntent.MESSAGE_CONTENT, GatewayIntent.GUILD_MESSAGES, GatewayIntent.GUILD_MEMBERS, GatewayIntent.GUILD_PRESENCES)
                 .addEventListeners(new SlashCommandHandler())
                 .build();
@@ -54,16 +55,18 @@ public class BotStarter {
                         .addOption(OptionType.STRING, "attack","Фракция нападения", true)
                         .setContexts(InteractionContextType.GUILD))
                 .addCommands(Commands.slash(Settings.RESULT_COMMAND,"Установить результат и победителя на данной поставке")
-                        .addOption(OptionType.BOOLEAN, "winner", "Победила ли сторона защиты? (true - защита выиграла, false - атака)", true)
+                        .addOptions(new OptionData(OptionType.STRING,"winner","Кто победил в поставке?",true)
+                                .addChoice("Защита","Защита")
+                                .addChoice("Атака","Атака"))
                         .addOption(OptionType.STRING, "result", "Описание результата поставки.", true)
                         .setContexts(InteractionContextType.GUILD))
                 .addCommands(Commands.slash("update", "[Модератор] Обновить принудительно данные о любой поставке")
-                        .addOption(OptionType.STRING,"key","Значение для обновления: faction/time/amount/map/attack/result")
+                        .addOption(OptionType.STRING,"key","time, destination, amount, defenders, map, result, attackers, afk, defenderWin, ended")
                         .addOption(OptionType.STRING,"value","Новое значение параметра поставки")
-                        .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.BAN_MEMBERS))
-                        )
+                        .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.BAN_MEMBERS)))
                 .addCommands(Commands.slash(STATS_COMMAND, "Статистика по фракции")
-                        .addOption(OptionType.STRING,"faction","Фракция для просмотра статистики"))
+                        .addOption(OptionType.STRING,"faction","Фракция для просмотра статистики", true)
+                        .addOptions(dateOption()))
                 .addCommands(Commands.slash("save","[Модератор] Сохранет статистику поставок").setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.BAN_MEMBERS)))
                 .addCommands(Commands.slash("clearmembers","[Модератор] Снимает лидера и все роли его состава")
                         .addOption(OptionType.STRING,"faction","Фракция для снятия")
@@ -73,12 +76,24 @@ public class BotStarter {
                         .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.BAN_MEMBERS)))
                 .addCommands(Commands.slash("помощь","Показать информацию об использовании бота").setContexts(InteractionContextType.GUILD))
                 .addCommands(Commands.slash("dump-data", "[Модератор] Выписать много разной информции о поставке."))
+                .addCommands(Commands.slash("авто-ролл","Команда для автоматического выбора карт и поставок случайным образои")
+                        .addSubcommands(new SubcommandData("карта","Разыгрывает карту для поставки среди предоставленных")
+                                        .addOption(OptionType.STRING,"maps","Карты для розыгрыша через запятую."),
+                                new SubcommandData("фракция","Выбирает случайным образом фракцию").addOption(OptionType.STRING,"factions",
+                                        "Фракции для рола на поставку через запятую, союзы - слитно через плюс. Пример: am, lcn, bsg+esb")))
+                .addCommands(Commands.slash("карта","[Модератор] Управление картами")
+                        .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.BAN_MEMBERS)).addSubcommands(
+                                new SubcommandData("управление","Добавить или удалить карту")
+                                        .addOption(OptionType.STRING,"map","название карты",true),
+                                new SubcommandData("список","Список всех текущих карт")
+                        ))
                 .queue();
         API.awaitReady();
         MemberUtils.setup();
         SupplyManager.SUPPLY_CHANNEL = API.getTextChannelById(Settings.REPORT_CHANNEL_ID);
         SupplyManager.NEWS_CHANNEL = API.getTextChannelById(Settings.NEWS_CHANNEL_ID);
         SupplyManager.loadData();
+        MapUtils.load();
         Runtime.getRuntime().addShutdownHook(new Thread(SupplyManager::saveData));
     }
 
@@ -91,6 +106,13 @@ public class BotStarter {
                 option.addChoice(faction.name(), faction.name());
             }
         }
+        return option;
+    }
+
+    public static OptionData dateOption() {
+        OptionData option = new OptionData(OptionType.STRING, "period", "Период статистики", true);
+        option.addChoice("месяц","месяц");
+        option.addChoice("неделя","неделя");
         return option;
     }
 
@@ -111,10 +133,4 @@ public class BotStarter {
         };
     }
 
-    private static boolean isCrimeFaction(MemberUtils.Faction faction) {
-        return switch(faction) {
-            case MM, RM, AM, LCN, YAK, FAM, LSV, ESB, BSG, MG13 -> true;
-            default -> false;
-        };
-    }
 }

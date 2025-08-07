@@ -54,6 +54,11 @@ public class Settings {
         return !now.isBefore(left) && !now.isAfter(right);
     }
 
+    public static String capitalizeFirst(String input) {
+        if (input == null || input.isEmpty()) return input;
+        return input.substring(0, 1).toUpperCase() + input.substring(1);
+    }
+
     /*
     * Код ошибки 01 - Slash Command Handler
     * Код ошибки 02 - Slash Command Handler

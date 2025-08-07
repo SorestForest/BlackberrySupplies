@@ -5,11 +5,13 @@ import net.dv8tion.jda.api.entities.MessageEmbed;
 
 import java.awt.*;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Locale;
 
 public class SupplyStats {
 
-    public static MessageEmbed calculateStats(String factionStr) {
+    public static MessageEmbed calculateStats(String factionStr, int period) {
         if (factionStr == null || factionStr.isEmpty()) {
             return errorEmbed("Фракция не указана.");
         }
@@ -32,9 +34,12 @@ public class SupplyStats {
         int attackedWon = 0;
         int attackedLost = 0;
 
+        LocalDateTime cutoffDate = LocalDateTime.now().atZone(ZoneId.of("Europe/Moscow")).minusDays(period).toLocalDateTime();
+
         for (var entry : SupplyManager.data.entrySet()) {
             SupplyManager.Supply supply = entry.getValue();
             if (!supply.ended) continue;
+            if (supply.timeEnded == null || supply.timeEnded.isBefore(cutoffDate)) continue;
 
             boolean isDestination = f.equals(supply.destination);
             boolean isDefender = supply.defenders != null && supply.defenders.contains(f);
@@ -64,7 +69,7 @@ public class SupplyStats {
         EmbedBuilder embed = new EmbedBuilder()
                 .setTitle("📦 Статистика по фракции " + f.displayName())
                 .setColor(f.color())
-                .setDescription("Период: **последние 7 дней**")
+                .setDescription("Период: **последние " + period + " дней**")
                 .setTimestamp(Instant.now());
 
         embed.addField("__Организованные поставки__", String.format(
@@ -73,17 +78,19 @@ public class SupplyStats {
         ), false);
 
         embed.addField("__Участие в защите__", String.format(
-                "Всего: **%d**\n" +
-                        "Успешно %s: **%d**\n" +
-                        "Провалено %s: **%d**",
+                """
+                        Всего: **%d**
+                        Успешно %s: **%d**
+                        Провалено %s: **%d**""",
                 defended, EmojiUtils.YES_EMOJI, defendedWon,
                 EmojiUtils.NO_EMOJI, defendedLost
         ), false);
 
         embed.addField("__Участие в атаке__", String.format(
-                "Всего: **%d**\n" +
-                        "Успешно %s: **%d**\n" +
-                        "Провалено %s: **%d**",
+                """
+                        Всего: **%d**
+                        Успешно %s: **%d**
+                        Провалено %s: **%d**""",
                 attacked, EmojiUtils.YES_EMOJI, attackedWon,
                 EmojiUtils.NO_EMOJI, attackedLost
         ), false);

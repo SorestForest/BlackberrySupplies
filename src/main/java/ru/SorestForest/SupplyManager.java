@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
 import java.io.FileReader;
@@ -13,7 +14,6 @@ import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -34,7 +34,9 @@ public class SupplyManager {
     }
 
     public static void saveData() {
-        Gson gson = new GsonBuilder().setPrettyPrinting().create();
+        Gson gson = new GsonBuilder().setPrettyPrinting()
+                .registerTypeAdapter(LocalDateTime.class, new LocalDateTimeAdapter())
+                .create();
 
         // 1. Создаём папку ./saved, если её нет
         File dir = new File("saved");
@@ -62,68 +64,69 @@ public class SupplyManager {
         File dir = new File("saved");
         if (!dir.exists() || !dir.isDirectory()) {
             System.err.println("Папка saved не найдена.");
+            //noinspection ResultOfMethodCallIgnored
             dir.mkdir();
             return;
         }
 
-        // Получаем все файлы в папке saved
+        deleteOldFiles(dir);
+
         File[] files = dir.listFiles((d, name) -> name.startsWith("supply_") && name.endsWith(".json"));
-        if (files == null || files.length == 0) {
-            System.out.println("Файлы сохранения не найдены.");
-            return;
-        }
-
-        Instant now = Instant.now();
-        int deletedCount = 0;
-        for (File file : files) {
-            try {
-                Instant fileTime = Files.getLastModifiedTime(file.toPath())
-                        .toInstant()
-                        .atZone(ZoneId.systemDefault())
-                        .toInstant();
-
-                if (ChronoUnit.DAYS.between(fileTime, now) > 7) {
-                    if (file.delete()) {
-                        deletedCount++;
-                        System.out.println("Удалён устаревший файл: " + file.getName());
-                    }
-                }
-            } catch (IOException e) {
-                System.err.println("Не удалось проверить дату файла: " + file.getName());
-            }
-        }
-
-        if (deletedCount > 0) {
-            System.out.println("Удалено старых файлов: " + deletedCount);
-        }
-
-        // Повторно считываем оставшиеся файлы
-        files = dir.listFiles((d, name) -> name.startsWith("supply_") && name.endsWith(".json"));
         if (files == null || files.length == 0) {
             System.out.println("Файлы сохранения не найдены (после очистки).");
             return;
         }
 
-        // Сортируем по убыванию (новейший файл первым)
-        Arrays.sort(files, Comparator.comparing(File::getName).reversed());
+        Arrays.sort(files, Comparator.comparing(File::lastModified).reversed());
         File latestFile = files[0];
 
         try (FileReader reader = new FileReader(latestFile)) {
-            Gson gson = new Gson();
+            Gson gson = new GsonBuilder()
+                    .registerTypeAdapter(LocalDateTime.class, new LocalDateTimeAdapter())
+                    .create();
+
             Type type = new TypeToken<HashMap<String, Supply>>() {}.getType();
             HashMap<String, Supply> loadedData = gson.fromJson(reader, type);
 
             if (loadedData != null) {
                 data.clear();
                 data.putAll(loadedData);
-                System.out.println("Загружено " + data.size() + " поставок из файла: " + latestFile.getName());
+                System.out.println("Загружено " + data.size() + " поставок за сегодня из файла: " + latestFile.getName());
             } else {
                 System.err.println("Файл пуст или повреждён: " + latestFile.getName());
             }
         } catch (IOException e) {
             System.err.println("Ошибка чтения файла: " + e.getMessage());
+            e.printStackTrace();
         }
     }
+
+    private static void deleteOldFiles(File dir) {
+        Instant now = Instant.now();
+        File[] files = dir.listFiles((d, name) -> name.startsWith("supply_") && name.endsWith(".json"));
+        if (files == null) return;
+
+        int deletedCount = 0;
+        for (File file : files) {
+            try {
+                Instant fileTime = Files.getLastModifiedTime(file.toPath()).toInstant();
+                if (ChronoUnit.DAYS.between(fileTime, now) > 31) {
+                    if (file.delete()) {
+                        deletedCount++;
+                        System.out.println("Удалён устаревший файл: " + file.getName());
+                    }
+                }
+            } catch (IOException e) {
+                System.err.println("Ошибка при удалении файла: " + file.getName());
+                e.printStackTrace();
+            }
+        }
+
+        if (deletedCount > 0) {
+            System.out.println("Удалено старых файлов: " + deletedCount);
+        }
+    }
+
 
     public static class Supply {
         public SupplyType type;
@@ -137,13 +140,14 @@ public class SupplyManager {
         public boolean ended;
         public boolean afk;
         public Boolean defenderWin;
+        public LocalDateTime timeEnded;
 
-        public Supply(SupplyType type, String time, int amount, String defendersStr, MemberUtils.Faction destination) {
+        public Supply(SupplyType type, String time, int amount, List<MemberUtils.Faction> defenders, MemberUtils.Faction destination) {
             this.type = type;
             this.time = time;
             this.destination = destination;
             this.amount = amount;
-            this.defenders = MemberUtils.parseFactions(defendersStr).r;
+            this.defenders = defenders;
             this.map = "Не выбрана";
             this.result = "В процессе..";
             this.attackers = new ArrayList<>();
@@ -153,18 +157,19 @@ public class SupplyManager {
         }
 
         public String getDefendersDisplay(boolean newLine) {
-            return defenders.stream()
+            return displayFactions(defenders, newLine);
+        }
+        public String getAttackersDisplay(boolean newLine) {
+            return displayFactions(attackers, newLine);
+        }
+
+        private static String displayFactions(List<MemberUtils.Faction> factions, boolean newLine) {
+            return factions.stream()
                     .map(MemberUtils.Faction::displayName)
                     .reduce((a, b) -> a + (newLine ? "\n" : " ") + b)
                     .orElse("Не указано");
         }
 
-        public String getAttackersDisplay(boolean newLine) {
-            return attackers.stream()
-                    .map(MemberUtils.Faction::displayName)
-                    .reduce((a, b) -> a + (newLine ? "\n" : " ") + b)
-                    .orElse("Не указано");
-        }
     }
 
 
@@ -172,6 +177,7 @@ public class SupplyManager {
     public enum SupplyType {
         EMS, NG, SPANK_MM, SPANK_LCN, SPANK_RM, SPANK_YAK, SPANK_AM, SPANK_BLANK;
 
+        @NotNull
         public MemberUtils.Faction faction() {
             return switch(this) {
                 case NG -> MemberUtils.Faction.NG;
@@ -181,7 +187,7 @@ public class SupplyManager {
                 case SPANK_RM -> MemberUtils.Faction.RM;
                 case SPANK_YAK -> MemberUtils.Faction.YAK;
                 case SPANK_AM -> MemberUtils.Faction.AM;
-                case SPANK_BLANK -> null;
+                case SPANK_BLANK -> MemberUtils.Faction.LSPD;
             };
         }
 
@@ -189,18 +195,6 @@ public class SupplyManager {
             return toString().replace("_"," ");
         }
 
-        public boolean isOrganizer(MemberUtils.Faction f) {
-            return switch(this){
-                case EMS -> f == MemberUtils.Faction.EMS;
-                case NG -> f == MemberUtils.Faction.NG;
-                case SPANK_MM -> f == MemberUtils.Faction.MM;
-                case SPANK_LCN -> f == MemberUtils.Faction.LCN;
-                case SPANK_RM -> f == MemberUtils.Faction.RM;
-                case SPANK_YAK -> f == MemberUtils.Faction.YAK;
-                case SPANK_AM -> f == MemberUtils.Faction.AM;
-                case SPANK_BLANK -> false;
-            };
-        }
     }
 
 }

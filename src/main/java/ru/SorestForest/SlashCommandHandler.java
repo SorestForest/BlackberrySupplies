@@ -15,17 +15,20 @@ import net.dv8tion.jda.api.interactions.commands.OptionMapping;
 import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
 import net.dv8tion.jda.api.utils.messages.MessageCreateData;
 import net.dv8tion.jda.api.utils.messages.MessageEditBuilder;
+import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 
 import java.awt.*;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.Arrays;
-import java.util.HashMap;
+import java.time.ZoneId;
 import java.util.List;
-import java.util.Objects;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import static ru.SorestForest.Settings.*;
 
+@SuppressWarnings("DataFlowIssue")
 public class SlashCommandHandler extends ListenerAdapter {
 
     @Override
@@ -43,9 +46,121 @@ public class SlashCommandHandler extends ListenerAdapter {
             case "cancel" -> handleCancel(event);
             case "помощь" -> handleHelpCommand(event);
             case "dump-data" -> handleDump(event);
+            case "авто-ролл" -> {
+                if (Objects.equals(event.getSubcommandName(), "карта")) {
+                    handleRollMap(event);
+                } else if (Objects.equals(event.getSubcommandName(), "фракция")) {
+                    handleRollFactions(event);
+                }
+            }
+            case "карта" -> MapUtils.handleMapCommand(event);
             default -> System.err.println("ERROR COMMAND");
         }
     }
+
+    private void handleRollMap(SlashCommandInteractionEvent event) {
+        event.deferReply(false).queue();
+        if (!event.getChannelType().isThread()) {
+            event.getHook().sendMessage("Команда работает только в ветке поставки.").queue();
+            return;
+        }
+
+        event.getChannel().asThreadChannel().retrieveParentMessage().queue(parentMessage -> {
+            SupplyManager.Supply supply = getSupplyFromParent(event, parentMessage);
+            if (supply == null) return;
+            String mapsStr = event.getOption("maps", null, OptionMapping::getAsString);
+            if (mapsStr == null || mapsStr.isBlank()) {
+                event.getHook().sendMessage("Не указаны карты для розыгрыша.").queue();
+                return;
+            }
+            List<String> maps = Arrays.stream(mapsStr.trim().split(","))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .toList();
+            if (!MapUtils.areAllMapsValid(maps)) {
+                event.getHook().sendMessage("Не все карты были распознаны как возможные карты для игры.").queue();
+                return;
+            }
+            String chosenMap = Settings.capitalizeFirst(maps.get(new Random().nextInt(maps.size())));
+            supply.map = chosenMap;
+            updateEmbed(parentMessage.getId(), supply);
+
+            EmbedBuilder eb = new EmbedBuilder();
+            eb.setTitle("🗺 Ролл карты")
+                    .addField("Доступные карты", String.join(", ", maps), false)
+                    .addField("✅ Выбранная карта", "**" + chosenMap + "**", false)
+                    .setFooter("Выбор карты произведён " + event.getUser().getName(), event.getUser().getAvatarUrl());
+
+            event.getHook().sendMessageEmbeds(eb.build()).queue();
+        });
+    }
+
+    private void handleRollFactions(SlashCommandInteractionEvent event) {
+        event.deferReply(false).queue();
+        if (!event.getChannelType().isThread()) {
+            event.getHook().sendMessage("Команда работает только в ветке поставки.").queue();
+            return;
+        }
+        event.getChannel().asThreadChannel().retrieveParentMessage().queue(parentMessage -> {
+            SupplyManager.Supply supply = getSupplyFromParent(event, parentMessage);
+            if (supply == null) return;
+            String factionsStr = event.getOption("factions", null, OptionMapping::getAsString);
+            if (factionsStr == null || factionsStr.isBlank()) {
+                event.getHook().sendMessage("Не указаны фракции для розыгрыша.").queue();
+                return;
+            }
+            factionsStr = factionsStr.replace(",","");
+            List<String> factionsRoll = Arrays.stream(factionsStr.trim().split(" "))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .toList();
+
+            List<List<MemberUtils.Faction>> factions = new ArrayList<>();
+
+            for (String s : factionsRoll) {
+                List<MemberUtils.Faction> group = new ArrayList<>();
+                for (String f : s.split("\\+")) {
+                    f = f.trim().toUpperCase();
+                    if (MemberUtils.isFaction(f, true)) {
+                        MemberUtils.Faction faction = MemberUtils.toFaction(f);
+                        group.add(faction);
+                    } else {
+                        event.getHook().sendMessage("Одна из фракций не была распознана: " + f).queue();
+                        return;
+                    }
+                }
+                if (!group.isEmpty()) factions.add(group);
+            }
+
+            if (factions.isEmpty()) {
+                event.getHook().sendMessage("Не удалось распознать ни одну фракцию.").queue();
+                return;
+            }
+
+            supply.attackers = factions.get(new Random().nextInt(factions.size()));
+
+
+
+            EmbedBuilder eb = new EmbedBuilder();
+            eb.setTitle("⚔️ Ролл фракций")
+                    .addField("Участвующие фракции", formatFactionGroups(factions), false)
+                    .addField("✅ Выбранная фракция(-и)", "**" + supply.getAttackersDisplay(false) + "**", false)
+                    .setFooter("Выбор фракции произведён " + event.getUser().getName(), event.getUser().getAvatarUrl());
+
+            updateEmbed(parentMessage.getId(), supply);
+            event.getHook().sendMessageEmbeds(eb.build()).queue();
+        });
+    }
+
+    public static String formatFactionGroups(List<List<MemberUtils.Faction>> factions) {
+        return factions.stream()
+                .map(group -> group.stream()
+                        .map(MemberUtils.Faction::displayName)
+                        .collect(Collectors.joining(" + ")))
+                .collect(Collectors.joining(", "));
+    }
+
+
 
     private void handleHelpCommand(SlashCommandInteractionEvent event) {
         EmbedBuilder help = new EmbedBuilder();
@@ -53,30 +168,33 @@ public class SlashCommandHandler extends ListenerAdapter {
         help.setDescription("Ниже приведены все доступные команды и их назначение.");
         help.setColor(Color.CYAN);
 
-        help.addField("/поставка нг", """
+        help.addField("/поставка-нг", """
         📦 Заказ материалов **армии (NG)** для гос. структур. Используется только армией.
         **Параметры:**
-        • `faction` — фракция назначения (гос)
+        • `destination` — фракция назначения (гос) на выбор
+        • `defenders` — сторона защиты поставки. Пишется английскими буквами, союзы через запятую: lssd, fib
         • `time` — время поставки (в формате HH:MM)
-        • `amount` — количество материалов
-        • `afk` — [необязательно] заказать как AFK-поставку, надо указать True
+        • `amount` — количество материалов для заказа
+        • `afk` — [необязательно] если надо заказать как AFK-поставку, то надо указать True
         """, false);
 
-        help.addField("/поставка емс", """
+        help.addField("/поставка-емс", """
         💉 Заказ аптечек **медслужбы (EMS)** для гос. структур. Используется только EMS
         **Параметры:**
-        • `faction` — фракция назначения (гос)
-        • `time` — время поставки
-        • `amount` — количество аптек
-        • `afk` — [необязательно] заказать как AFK-поставку, надо указать True
+        • `destination` — фракция назначения (гос) на выбор
+        • `defenders` — сторона защиты поставки. Пишется английскими буквами, союзы через запятую: lssd, fib
+        • `time` — время заказа поставки в формате HH:mm
+        • `amount` — количество аптек для заказаа
+        • `afk` — [необязательно] если надо заказать как AFK-поставку, то надо указать True
         """, false);
 
-        help.addField("/поставка спанк", """
+        help.addField("/поставка-спанк", """
         💼 Заказ спанка (анальгетиков) для **крайм-фракций**.
         **Параметры:**
         • `faction` — кто заказывает спанк (прокает его)
-        • `destination` — куда разгружается спанк (играющая фракция, которая будет его дефать)
-        • `time` — время поставки
+        • `destination` — куда разгружается поставка спанка
+        • `defenders` — сторона защиты поставки. Пишется английскими буквами, союзы через запятую: am, lcn, yak
+        • `time` — время заказа поставки в формате HH:mm
         • `amount` — количество спанка
         • `afk` — [необязательно] заказать как AFK-поставку, надо указать True
         """, false);
@@ -85,20 +203,33 @@ public class SlashCommandHandler extends ListenerAdapter {
         🎲 Установить **карту** и **фракцию нападения** на активную поставку.
         **Параметры:**
         • `map` — название карты
-        • `attack` — фракция, совершающая атаку. Можно указывать союзы!
+        • `attack` — фракция, совершающая атаку. Союзы указываются через запятую: am, lcn или fib, lssd
         """, false);
 
         help.addField("/результат", """
         🏁 Установить **результат поставки**.
         **Параметры:**
         • `winner` — победила ли защита. Если защита выиграла, указываете true, иначе - false.
-        • `result` — описание результата
+        • `result` — описание результата - на ваше усмотрение
         """, false);
 
         help.addField("/статистика", """
-        📊 Посмотреть статистику поставок **по одной фракции** за последние 7 дней.
+        📊 Посмотреть статистику поставок **по одной фракции** за последние 7 дней или месяц.
         **Параметры:**
         • `faction` — название фракции (напр. LSSD, MM или любая другая)
+        • `period` — период просмотра статистики
+        """, false);
+        help.addField("🔹 /авто-ролл карта", """
+        Случайно выбрать карту из списка.
+        **Параметры:**
+        • `maps` — список карт через запятую.
+        """, false);
+
+        help.addField("🔹 /авто-ролл фракция", """
+        Случайно выбрать атакующую фракцию.
+        **Параметры:**
+        • `factions` — список фракций через запятую;
+        • союзы — указывать через `+`, пример: `bsg+esb`. Пример полной строки: `bsg+lcn, ems, fib'
         """, false);
 
         help.setFooter("Бот создан Daniel Powell (sorestforest)");
@@ -189,7 +320,11 @@ public class SlashCommandHandler extends ListenerAdapter {
             }
         } else {
             boolean hasMafiaRole = Arrays.stream(MemberUtils.Faction.values())
-                    .anyMatch(f -> f.isMafia() && MemberUtils.isInFaction(member, f));
+                    .anyMatch(f -> {
+                        if (!f.isMafia()) return false;
+                        assert member != null;
+                        return MemberUtils.isInFaction(member, f);
+                    });
             if (!hasMafiaRole) {
                 event.getHook().sendMessage("Отпись поставок SPANK невозможно без соответствующей роли любой мафии.").queue();
                 return;
@@ -208,15 +343,6 @@ public class SlashCommandHandler extends ListenerAdapter {
             return;
         }
 
-        // Проверка ВЗХ
-        String[] parts = time.split(":");
-        int hours = Integer.parseInt(parts[0]);
-        int minutes = Integer.parseInt(parts[1]);
-        if (Settings.isBetween(hours, minutes, 18, 30, 19, 30) && !isSpank) {
-            event.getHook().sendMessage("В данное время нельзя заказать поставку в связи с ВЗХ.").queue();
-            return;
-        }
-
         // Проверка фракций
         ForestPair<Boolean,List<MemberUtils.Faction>> defenderFactions = MemberUtils.parseFactions(defendersStr);
         if (defenderFactions.r.isEmpty() || !defenderFactions.l) {
@@ -227,8 +353,8 @@ public class SlashCommandHandler extends ListenerAdapter {
             event.getHook().sendMessage("Неверно указана фракция назначения.").queue();
             return;
         }
-
-        SupplyManager.Supply supply = new SupplyManager.Supply(type, time, amount, defendersStr, MemberUtils.toFaction(destination));
+        MemberUtils.Faction destFaction = MemberUtils.toFaction(destination);
+        SupplyManager.Supply supply = new SupplyManager.Supply(type, time, amount, defenderFactions.r, destFaction);
         supply.defenders = defenderFactions.r;
 
         boolean afkStatus = Boolean.TRUE.equals(event.getOption("afk", OptionMapping::getAsBoolean));
@@ -239,7 +365,14 @@ public class SlashCommandHandler extends ListenerAdapter {
 
         int check = validateTime(event, time, supply);
         if (check == 0 && !MemberUtils.isModerator(Objects.requireNonNull(member))) return;
-
+        // Проверка ВЗХ
+        String[] parts = time.split(":");
+        int hours = Integer.parseInt(parts[0]);
+        int minutes = Integer.parseInt(parts[1]);
+        if (Settings.isBetween(hours, minutes, 18, 30, 19, 30) && !isSpank) {
+            event.getHook().sendMessage("В данное время нельзя заказать поставку в связи с ВЗХ.").queue();
+            return;
+        }
 
         SupplyManager.SupplyType finalType = type;
         event.getHook().sendMessage(buildMessage(supply, check == 1)).queue(sentMessage -> {
@@ -248,19 +381,17 @@ public class SlashCommandHandler extends ListenerAdapter {
                     ? "spank-" + defendersStr.toLowerCase() + "(" + destination + ")"
                     : finalType.name().toLowerCase() + "-" + destination.toLowerCase();
             sentMessage.createThreadChannel(threadName).queue(thread -> {
-                thread.sendMessage("Ветка создана для обсуждения поставки " + finalType.displayName() + " для " + destination +
-                        (isSpank ? " от " + defendersStr : ". Защищают: " + supply.getDefendersDisplay(false)) + ".").queue();
+                thread.sendMessage("Ветка создана для обсуждения поставки " + finalType.displayName() + " для " + destFaction.displayName()
+                        + ". Защищают: "+supply.getDefendersDisplay(false)).queue();
 
                 if (supply.afk) {
-                    String afkMention = isSpank ? defendersStr : destination;
+                    String afkMention = isSpank ? supply.getDefendersDisplay(false) : destFaction.displayName();
                     thread.sendMessage("⚠️ Поставка была заказана как **AFK**. У фракции заказчика и **" + afkMention +
-                            "** есть **5 минут** на указание причины AFK-поставки, иначе она будет считаться **заказанной не по правилам**. Ссылку можно указать с помощью команды /результат, winner указывайте как True.").queue();
+                            "** есть **5 минут** на указание причины AFK-поставки, иначе она будет считаться **заказанной не по правилам**. Ссылку можно указать с помощью команды /результат, winner указывайте как Защита.").queue();
                 }
             });
         });
     }
-
-
 
     private int validateTime(SlashCommandInteractionEvent event, String time, SupplyManager.Supply supply) {
         if (time == null || !time.matches("^\\d{2}:\\d{2}$")) {
@@ -329,7 +460,7 @@ public class SlashCommandHandler extends ListenerAdapter {
             SupplyManager.Supply supply = getSupplyFromParent(event, parentMessage);
             if (supply == null) return;
 
-            Boolean winner = event.getOption("winner", OptionMapping::getAsBoolean);
+            String winner = event.getOption("winner", OptionMapping::getAsString);
             String result = event.getOption("result", OptionMapping::getAsString);
 
             if (winner == null || result == null) {
@@ -337,9 +468,10 @@ public class SlashCommandHandler extends ListenerAdapter {
                 return;
             }
 
-            supply.defenderWin = winner;
+            supply.defenderWin = winner.equals("Защита");
             supply.result = result;
             supply.ended = true;
+            supply.timeEnded = LocalDateTime.now(ZoneId.of("Europe/Moscow"));
             updateEmbed(parentMessage.getId(), supply);
             event.getHook().sendMessage("Данные о поставке обновлены, GG, WP! "+supply.defenderWin).queue();
         });
@@ -365,21 +497,15 @@ public class SlashCommandHandler extends ListenerAdapter {
                 event.getHook().sendMessage("Команда предназначена для использования только с ролью модератора.").queue();
                 return;
             }
-
+            // time, destination, amount, defenders, map, result, attackers, afk, defenderWin, ended
             switch (Objects.requireNonNull(key)) {
-                case "time" -> {
-                    supply.time = value;
-                }
-                case "destination" -> {
-                    supply.destination = MemberUtils.toFaction(value);
-                }
+                case "time" -> supply.time = value;
+                case "destination" -> supply.destination = MemberUtils.toFaction(value);
                 case "amount" -> {
                     assert value != null;
                     supply.amount = Integer.parseInt(value);
                 }
-                case "defenders" -> {
-                    supply.defenders = MemberUtils.parseFactions(value).r;
-                }
+                case "defenders" -> supply.defenders = MemberUtils.parseFactions(value).r;
                 case "map" -> supply.map = value;
                 case "result" -> supply.result = value;
                 case "attackers" -> supply.attackers = MemberUtils.parseFactions(value).r;
@@ -472,13 +598,21 @@ public class SlashCommandHandler extends ListenerAdapter {
 
 
     private void handleStats(SlashCommandInteractionEvent event) {
+        event.deferReply(true).queue();
         String faction = event.getOption("faction", OptionMapping::getAsString);
-        MessageEmbed statsEmbed = SupplyStats.calculateStats(faction);
-        event.replyEmbeds(statsEmbed).queue();
+        String period = event.getOption("period", OptionMapping::getAsString);
+        int days;
+        if (Objects.equals(period, "месяц")) {
+            days = 31;
+        } else {
+            days = 7;
+        }
+        MessageEmbed statsEmbed = SupplyStats.calculateStats(faction, days);
+        event.getHook().sendMessageEmbeds(statsEmbed).queue();
     }
 
     private boolean validatePermissions(SlashCommandInteractionEvent event) {
-        if (!MemberUtils.isSupplier(Objects.requireNonNull(event.getMember())) && !MemberUtils.isModerator(event.getMember())) {
+        if (!MemberUtils.isSupplier(Objects.requireNonNull(event.getMember()))) {
             event.getHook().sendMessage("Недостаточно прав для отписи поставки. Требуется роль отписи.").queue();
             return true;
         }
@@ -499,7 +633,7 @@ public class SlashCommandHandler extends ListenerAdapter {
             event.getHook().sendMessage("Не удалось определить поставку! Код ошибки: 02.").setEphemeral(true).queue();
             return null;
         }
-        if (!MemberUtils.isInFaction(Objects.requireNonNull(event.getMember()), supply.type.faction()) && !MemberUtils.isModerator(event.getMember())) {
+        if (!MemberUtils.isInFaction(Objects.requireNonNull(event.getMember()), supply.type.faction())) {
             event.getHook().sendMessage("Данная поставка не ваша, обратитесь к " + supply.type.faction() + " для редакции информации.").queue();
             return null;
         }
@@ -521,7 +655,7 @@ public class SlashCommandHandler extends ListenerAdapter {
         // Нападавшие
         builder.addField("Нападают", supply.attackers != null ? supply.getAttackersDisplay(true) : "—", true);
         // Карта
-        builder.addField("Карта", supply.map, true);
+        builder.addField("Карта", Settings.capitalizeFirst(supply.map), true);
         // Результат
         builder.addField("Итог", supply.result != null ? supply.result : "—", true);
         // AFK
@@ -531,35 +665,31 @@ public class SlashCommandHandler extends ListenerAdapter {
         return builder.build();
     }
 
-    private String getSupplyIcon(SupplyManager.SupplyType type) {
+    public static final String EMS_ICON = "🚑";
+    public static final String SPANK_ICON = "\uD83D\uDC8A";
+    public static final String NG_ICON = "\uD83D\uDE9B";
+    public static final String DEFAULT_ICON = "🚚";
+
+    @NotNull
+    @Contract(pure = true)
+    private String getSupplyIcon(@NotNull SupplyManager.SupplyType type) {
         return switch (type) {
-            case EMS -> "🚑"; // Скорая помощь
-            case NG -> "\uD83D\uDE9B";  // Армия / военная поставка (шлем)
+            case EMS -> EMS_ICON; // Скорая помощь
+            case NG -> NG_ICON;  // Армия / военная поставка (шлем)
 
-            case SPANK_MM, SPANK_LCN, SPANK_RM, SPANK_YAK, SPANK_AM -> "\uD83D\uDC8A"; // Спанк — чемоданчик/контрабанда
+            case SPANK_MM, SPANK_LCN, SPANK_RM, SPANK_YAK, SPANK_AM -> SPANK_ICON ; // Спанк — чемоданчик/контрабанда
 
-            default -> "🚚"; // Стандартный грузовик
+            default -> DEFAULT_ICON; // Стандартный грузовик
         };
     }
 
 
-    private Color getColorForType(SupplyManager.SupplyType type) {
-        return switch (type) {
-            case EMS -> new Color(201, 2, 25);        // Ярко-красный (медики)
-            case NG -> new Color(30, 105, 46);        // Армейский зелёный
-
-            case SPANK_MM -> new Color(0, 128, 0);    // Яркий зелёный (Mexican Mafia)
-            case SPANK_LCN -> new Color(218, 165, 32); // Goldenrod (La Cosa Nostra)
-            case SPANK_RM -> new Color(47, 79, 79);   // Dark slate gray
-            case SPANK_YAK -> new Color(128, 0, 0);   // Тёмно-красный
-            case SPANK_AM -> new Color(139, 69, 19);   // Индиго
-
-            default -> new Color(0, 183, 141);        // Fallback — бирюзовый
-        };
+    @NotNull
+    private Color getColorForType(@NotNull SupplyManager.SupplyType type) {
+        return type.faction().color();
     }
 
-
-
+    @NotNull
     private MessageCreateData buildMessage(SupplyManager.Supply supply, boolean pingModerators) {
         MessageEmbed embed = buildEmbed(supply);
         MessageCreateBuilder builder = new MessageCreateBuilder();
@@ -582,17 +712,6 @@ public class SlashCommandHandler extends ListenerAdapter {
                     builder.setContent(content);
                     message.editMessage(builder.build()).queue();
                 });
-    }
-
-    private SupplyManager.SupplyType resolve(String faction) {
-        return switch (faction.toUpperCase()) {
-            case "MM" -> SupplyManager.SupplyType.SPANK_MM;
-            case "AM" -> SupplyManager.SupplyType.SPANK_AM;
-            case "YAK" -> SupplyManager.SupplyType.SPANK_YAK;
-            case "RM" -> SupplyManager.SupplyType.SPANK_RM;
-            case "LCN" -> SupplyManager.SupplyType.SPANK_LCN;
-            default -> null;
-        };
     }
 
     public static void sendLeaderRemovalMessage(TextChannel textChannel,
