@@ -21,7 +21,7 @@ public class BotStarter {
 
     public static void startBot() throws InterruptedException {
         System.out.println("Starting API...");
-        API = JDABuilder.createDefault(System.getenv("BLACKBERRY_BOT_TOKEN"))
+        API = JDABuilder.createDefault(System.getProperty("token"))
                 .enableIntents(GatewayIntent.MESSAGE_CONTENT, GatewayIntent.GUILD_MESSAGES, GatewayIntent.GUILD_MEMBERS, GatewayIntent.GUILD_PRESENCES)
                 .addEventListeners(new SlashCommandHandler())
                 .build();
@@ -61,36 +61,34 @@ public class BotStarter {
                         .addOption(OptionType.STRING, "result", "Описание результата поставки.", true)
                         .setContexts(InteractionContextType.GUILD))
                 .addCommands(Commands.slash("update", "[Модератор] Обновить принудительно данные о любой поставке")
-                        .addOption(OptionType.STRING,"key","time, destination, amount, defenders, map, result, attackers, afk, defenderWin, ended")
-                        .addOption(OptionType.STRING,"value","Новое значение параметра поставки")
+                        .addOption(OptionType.STRING,"key","time, destination, amount, defenders, map, result, attackers, afk, defenderWin, ended", true)
+                        .addOption(OptionType.STRING,"value","Новое значение параметра поставки", true)
                         .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.BAN_MEMBERS)))
                 .addCommands(Commands.slash(STATS_COMMAND, "Статистика по фракции")
                         .addOption(OptionType.STRING,"faction","Фракция для просмотра статистики", true)
                         .addOptions(dateOption()))
-                .addCommands(Commands.slash("save","[Модератор] Сохранет статистику поставок").setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.BAN_MEMBERS)))
+                .addCommands(Commands.slash("save","[Модератор] Сохранет статистику поставок"))
                 .addCommands(Commands.slash("clearmembers","[Модератор] Снимает лидера и все роли его состава")
-                        .addOption(OptionType.STRING,"faction","Фракция для снятия")
-                        .addOption(OptionType.USER,"leader","Лидер для снятия и уведомления")
-                        .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.BAN_MEMBERS)))
-                .addCommands(Commands.slash("cancel","[Модератор] Отменяет данную поставку, удаляет данные из базы.")
-                        .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.BAN_MEMBERS)))
+                        .addOption(OptionType.STRING,"faction","Фракция для снятия", true)
+                        .addOption(OptionType.USER,"leader","Лидер для снятия и уведомления", true))
+                .addCommands(Commands.slash("cancel","[Модератор] Отменяет данную поставку, удаляет данные из базы."))
                 .addCommands(Commands.slash("помощь","Показать информацию об использовании бота").setContexts(InteractionContextType.GUILD))
                 .addCommands(Commands.slash("dump-data", "[Модератор] Выписать много разной информции о поставке."))
                 .addCommands(Commands.slash("авто-ролл","Команда для автоматического выбора карт и поставок случайным образои")
                         .addSubcommands(new SubcommandData("карта","Разыгрывает карту для поставки среди предоставленных")
-                                        .addOption(OptionType.STRING,"maps","Карты для розыгрыша через запятую."),
+                                        .addOption(OptionType.STRING,"maps","Карты для розыгрыша, писать через запятую.", true),
                                 new SubcommandData("фракция","Выбирает случайным образом фракцию").addOption(OptionType.STRING,"factions",
-                                        "Фракции для рола на поставку через запятую, союзы - слитно через плюс. Пример: am, lcn, bsg+esb")))
-                .addCommands(Commands.slash("карта","[Модератор] Управление картами")
-                        .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.BAN_MEMBERS)).addSubcommands(
-                                new SubcommandData("управление","Добавить или удалить карту")
+                                        "Фракции для рола на поставку через запятую, союзы - слитно через плюс. Пример: am, lcn, bsg+esb", true)))
+                .addCommands(Commands.slash("карта","Управление картами").addSubcommands(
+                                new SubcommandData("управление","[Модератор] Добавить или удалить карту")
                                         .addOption(OptionType.STRING,"map","название карты",true),
                                 new SubcommandData("список","Список всех текущих карт")
                         ))
+                .addCommands(Commands.slash("whoami","who am i??"))
                 .queue();
         API.awaitReady();
         MemberUtils.setup();
-        SupplyManager.SUPPLY_CHANNEL = API.getTextChannelById(Settings.REPORT_CHANNEL_ID);
+        SupplyManager.SUPPLY_CHANNEL = API.getTextChannelById(Settings.SUPPLY_CHANNEL_ID);
         SupplyManager.NEWS_CHANNEL = API.getTextChannelById(Settings.NEWS_CHANNEL_ID);
         SupplyManager.loadData();
         MapUtils.load();

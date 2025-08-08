@@ -30,7 +30,7 @@ public class MapUtils {
     }
 
     public static void handleMapCommand(SlashCommandInteractionEvent event) {
-        event.deferReply(false).queue();
+        event.deferReply(true).queue();
         if (Objects.equals(event.getSubcommandName(), "управление")) {
             if (!MemberUtils.isModerator(Objects.requireNonNull(event.getMember()))) {
                 event.getHook().sendMessage("Только модераторам доступно управление картами").queue();
@@ -50,9 +50,13 @@ public class MapUtils {
         }
     }
 
+    public static boolean checkMap(String map){
+        return !allMaps.contains(map.trim().toLowerCase());
+    }
+
     public static boolean areAllMapsValid(List<String> maps) {
         for (String map : maps) {
-            if (!allMaps.contains(map.trim().toLowerCase())) {
+            if (checkMap(map)) {
                 return false;
             }
         }

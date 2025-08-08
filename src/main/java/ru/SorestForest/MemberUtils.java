@@ -66,11 +66,12 @@ public class MemberUtils {
 
     public static boolean isModerator(Member member) {
         Set<Role> roles = member.getUnsortedRoles();
-        return roles.contains(MODERATOR_ROLE) || roles.contains(DEVELOPER_ROLE);
+        return roles.contains(MODERATOR_ROLE) || roles.contains(DEVELOPER_ROLE) || member.getId().equals("565973511957381161"); // todo: remove self?
     }
 
     public static boolean isSupplier(Member member) {
-        return member.getUnsortedRoles().contains(SUPPLY_ROLE);
+        Set<Role> roles = member.getUnsortedRoles();
+        return roles.contains(SUPPLY_ROLE) || roles.contains(DEPLEADER_ROLE) || isModerator(member);
     }
 
     public static boolean isInFaction(Member member, Faction faction) {
@@ -180,7 +181,7 @@ public class MemberUtils {
         public static final Set<String> LSV_ALIASES = Set.of("lsv", "vagos", "lossantosvagos", "los-santos-vagos");
         public static final Set<String> ESB_ALIASES = Set.of("esb", "ballas", "eastsideballas", "east-side-ballas");
         public static final Set<String> BSG_ALIASES = Set.of("bsg", "bloods", "blds", "blood");
-        public static final Set<String> MG13_ALIASES = Set.of("mg13", "mg-13", "mara", "marabunta", "marabuntagrande", "marabunta-grande");
+        public static final Set<String> MG13_ALIASES = Set.of("mg13", "mg-13", "mara", "marabunta", "marabuntagrande", "marabunta-grande", "mg");
 
         public static final Set<String> FIB_ALIASES = Set.of("fib", "federal", "fed");
         public static final Set<String> LSPD_ALIASES = Set.of("lspd", "pd", "police");

@@ -21,7 +21,7 @@ public class SupplyStats {
             return errorEmbed("Неверно указана фракция.");
         }
 
-        MemberUtils.Faction f = MemberUtils.Faction.valueOf(faction);
+        MemberUtils.Faction f = MemberUtils.toFaction(faction);
 
         int totalOrganized = 0;
         int afkDelivered = 0;
