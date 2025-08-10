@@ -11,6 +11,7 @@ import net.dv8tion.jda.api.interactions.commands.build.OptionData;
 import net.dv8tion.jda.api.interactions.commands.build.SubcommandData;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.requests.restaction.CommandListUpdateAction;
+import net.dv8tion.jda.api.utils.cache.CacheFlag;
 
 import static ru.SorestForest.Settings.STATS_COMMAND;
 
@@ -24,6 +25,7 @@ public class BotStarter {
         API = JDABuilder.createDefault(System.getProperty("token"))
                 .enableIntents(GatewayIntent.MESSAGE_CONTENT, GatewayIntent.GUILD_MESSAGES, GatewayIntent.GUILD_MEMBERS, GatewayIntent.GUILD_PRESENCES)
                 .addEventListeners(new SlashCommandHandler())
+                .enableCache(CacheFlag.ROLE_TAGS)
                 .build();
         CommandListUpdateAction commnads = API.updateCommands();
         commnads.addCommands(Commands.slash(Settings.NG_COMMAND, "Отпись правительственных поставок материалов")

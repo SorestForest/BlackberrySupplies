@@ -406,22 +406,21 @@ public class SlashCommandHandler extends ListenerAdapter {
 
         SupplyManager.SupplyType finalType = type;
         event.getHook().sendMessage(buildMessage(supply, check == 1))
-                .setAllowedMentions(List.of(Message.MentionType.ROLE))
-                .mentionRoles(CRIME_ROLE_ID, STATE_ROLE_ID)
+                .setAllowedMentions(EnumSet.of(Message.MentionType.ROLE))
                 .queue(sentMessage -> {
-            SupplyManager.registerSupply(sentMessage.getId(), supply);
-            String threadName = isSpank
-                    ? "spank-" + defendersStr.toLowerCase() + "(" + destination + ")"
-                    : finalType.name().toLowerCase() + "-" + destination.toLowerCase();
-            sentMessage.createThreadChannel(threadName).queue(thread -> {
-                thread.sendMessage("Ветка создана для обсуждения поставки " + finalType.displayName() + " для " + destFaction.displayName()
-                        + ". Защищают: "+supply.getDefendersDisplay(false)).queue();
+                    SupplyManager.registerSupply(sentMessage.getId(), supply);
+                    String threadName = isSpank
+                            ? "spank-" + defendersStr.toLowerCase() + "(" + destination + ")"
+                            : finalType.name().toLowerCase() + "-" + destination.toLowerCase();
+                    sentMessage.createThreadChannel(threadName).queue(thread -> {
+                        thread.sendMessage("Ветка создана для обсуждения поставки " + finalType.displayName() + " для " + destFaction.displayName()
+                                + ". Защищают: "+supply.getDefendersDisplay(false) + "\n" + MemberUtils.CRIME_ROLE.getAsMention() + " " + MemberUtils.STATE_ROLE.getAsMention() ).queue();
 
-                if (supply.afk) {
-                    String afkMention = isSpank ? supply.getDefendersDisplay(false) : destFaction.displayName();
-                    thread.sendMessage("⚠️ Поставка была заказана как **AFK**. У фракции заказчика и **" + afkMention +
+                        if (supply.afk) {
+                            String afkMention = isSpank ? supply.getDefendersDisplay(false) : destFaction.displayName();
+                            thread.sendMessage("⚠️ Поставка была заказана как **AFK**. У фракции заказчика и **" + afkMention +
                             "** есть **5 минут** на указание причины AFK-поставки, иначе она будет считаться **заказанной не по правилам**. Ссылку можно указать с помощью команды /результат, winner указывайте как Защита.").queue();
-                }
+                        }
             });
         });
     }
