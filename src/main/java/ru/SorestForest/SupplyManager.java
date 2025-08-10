@@ -23,7 +23,6 @@ public class SupplyManager {
     public static final HashMap<String, Supply> data = new HashMap<>();
 
     public static TextChannel SUPPLY_CHANNEL;
-    public static TextChannel NEWS_CHANNEL;
 
     public static void registerSupply(String messageID, Supply supply) {
         data.put(messageID, supply);

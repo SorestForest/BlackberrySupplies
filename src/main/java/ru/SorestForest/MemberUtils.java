@@ -20,6 +20,9 @@ public class MemberUtils {
     public static Role DEPLEADER_ROLE;
     public static Role DEVELOPER_ROLE;
 
+    public static Role CRIME_ROLE;
+    public static Role STATE_ROLE;
+
     public static Role LSV;
     public static Role ESB;
     public static Role FAM;
@@ -43,6 +46,9 @@ public class MemberUtils {
         MODERATOR_ROLE = BotStarter.API.getRoleById(MODERATOR_ROLE_ID);
         DEPLEADER_ROLE = BotStarter.API.getRoleById(DEPLEADER_ROLE_ID);
         DEVELOPER_ROLE = BotStarter.API.getRoleById(DEVELOPER_ROLE_ID);
+
+        CRIME_ROLE = BotStarter.API.getRoleById(CRIME_ROLE_ID);
+        STATE_ROLE = BotStarter.API.getRoleById(STATE_ROLE_ID);
 
         LSV = BotStarter.API.getRoleById(LSV_ID);
         ESB = BotStarter.API.getRoleById(ESB_ID);

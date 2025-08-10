@@ -31,7 +31,9 @@ public class BotStarter {
                                 .addOption(OptionType.STRING,"defenders","Фракции стороны защиты", true)
                                 .addOption(OptionType.STRING, "time", "Время отписи поставки", true)
                                 .addOption(OptionType.INTEGER, "amount", "Количество материалов для заказа (стандарт - 20.000)", true)
-                        .addOption(OptionType.BOOLEAN,"afk","[Дополнительно] Заказать АФК поставку (выбрать true)")
+                        .addOptions(new OptionData(OptionType.STRING,"afk","[Дополнительно] Заказать АФК поставку")
+                                .addChoice("AFK","AFK")
+                                .addChoice("Боевая","Боевая"))
                                 .setContexts(InteractionContextType.GUILD),
 
                         Commands.slash(Settings.EMS_COMMAND, "Отпись правительственных поставок аптек")
@@ -39,7 +41,9 @@ public class BotStarter {
                                 .addOption(OptionType.STRING,"defenders","Фракции стороны защиты", true)
                                 .addOption(OptionType.STRING, "time", "Время отписи поставки", true)
                                 .addOption(OptionType.INTEGER, "amount", "Количество аптек для заказа (стандарт - 1500)", true)
-                                .addOption(OptionType.BOOLEAN,"afk","[Дополнительно] Заказать АФК поставку (выбрать true)")
+                                .addOptions(new OptionData(OptionType.STRING,"afk","[Дополнительно] Заказать АФК поставку")
+                                        .addChoice("AFK","AFK")
+                                        .addChoice("Боевая","Боевая"))
                                 .setContexts(InteractionContextType.GUILD),
 
                         Commands.slash(Settings.SPANK_COMMAND, "Отпись крайм поставок анальгетиков")
@@ -48,11 +52,13 @@ public class BotStarter {
                                 .addOption(OptionType.STRING,"defenders","Фракции стороны защиты", true)
                                 .addOption(OptionType.STRING, "time", "Время отписи поставки", true)
                                 .addOption(OptionType.INTEGER, "amount", "Количество спанка для заказа (стандарт - 1000)", true)
-                                .addOption(OptionType.BOOLEAN,"afk","[Дополнительно] Заказать АФК поставку (выбрать true)")
+                                .addOptions(new OptionData(OptionType.STRING,"afk","[Дополнительно] Заказать АФК поставку")
+                                        .addChoice("AFK","AFK")
+                                        .addChoice("Боевая","Боевая"))
                                 .setContexts(InteractionContextType.GUILD))
-                .addCommands(Commands.slash(Settings.ROLL_COMMAND,"Устанавливает карту и фракцию нападения")
-                        .addOption(OptionType.STRING,"map","Карта розыгрыша поставки", true)
-                        .addOption(OptionType.STRING, "attack","Фракция нападения", true)
+                .addCommands(Commands.slash(Settings.ROLL_COMMAND,"Устанавливает карту или фракцию нападения")
+                        .addOption(OptionType.STRING,"map","Карта розыгрыша поставки", false)
+                        .addOption(OptionType.STRING, "attack","Фракция нападения", false)
                         .setContexts(InteractionContextType.GUILD))
                 .addCommands(Commands.slash(Settings.RESULT_COMMAND,"Установить результат и победителя на данной поставке")
                         .addOptions(new OptionData(OptionType.STRING,"winner","Кто победил в поставке?",true)
@@ -65,7 +71,7 @@ public class BotStarter {
                         .addOption(OptionType.STRING,"value","Новое значение параметра поставки", true)
                         .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.BAN_MEMBERS)))
                 .addCommands(Commands.slash(STATS_COMMAND, "Статистика по фракции")
-                        .addOption(OptionType.STRING,"faction","Фракция для просмотра статистики", true)
+                        .addOptions(allFactionsOption())
                         .addOptions(dateOption()))
                 .addCommands(Commands.slash("save","[Модератор] Сохранет статистику поставок"))
                 .addCommands(Commands.slash("clearmembers","[Модератор] Снимает лидера и все роли его состава")
@@ -89,12 +95,20 @@ public class BotStarter {
         API.awaitReady();
         MemberUtils.setup();
         SupplyManager.SUPPLY_CHANNEL = API.getTextChannelById(Settings.SUPPLY_CHANNEL_ID);
-        SupplyManager.NEWS_CHANNEL = API.getTextChannelById(Settings.NEWS_CHANNEL_ID);
         SupplyManager.loadData();
         MapUtils.load();
         Runtime.getRuntime().addShutdownHook(new Thread(SupplyManager::saveData));
     }
 
+    private static OptionData allFactionsOption() {
+        OptionData data = new OptionData(OptionType.STRING,"faction","Тип статистики для просмотра.", true);
+        data.addChoice("General","General");
+        data.addChoice("Map","Map");
+        for (MemberUtils.Faction value : MemberUtils.Faction.values()) {
+            data.addChoice(value.name(), value.name());
+        }
+        return data;
+    }
 
 
     public static OptionData factionGov() {

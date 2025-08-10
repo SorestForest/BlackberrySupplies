@@ -6,10 +6,7 @@ import java.time.ZoneId;
 public class Settings {
 
 
-    public static final String SELF_ID = "1401646665676620018";
-
     public static final String SUPPLY_CHANNEL_ID = "1328810240862322743";
-    public static final String NEWS_CHANNEL_ID = "1393012130390741002";
 
     public static final String SUPPLY_ROLE_ID = "1392990918394515497";
     public static final String MODERATOR_ROLE_ID = "1328820426767466557";
@@ -39,7 +36,7 @@ public class Settings {
     public static final String NG_COMMAND = "поставка-нг";
     public static final String EMS_COMMAND = "поставка-емс";
     public static final String SPANK_COMMAND = "поставка-спанк";
-    public static final String ROLL_COMMAND = "ролл";
+    public static final String ROLL_COMMAND = "управление";
     public static final String RESULT_COMMAND = "результат";
     public static final String STATS_COMMAND = "статистика";
 

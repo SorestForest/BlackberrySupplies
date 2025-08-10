@@ -4,7 +4,6 @@ import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
 import net.dv8tion.jda.api.components.buttons.Button;
 import net.dv8tion.jda.api.entities.*;
-import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
@@ -59,7 +58,6 @@ public class SlashCommandHandler extends ListenerAdapter {
                 }
                 StringBuilder msg = new StringBuilder("isModerator: " + MemberUtils.isModerator(event.getMember()) + '\n');
                 msg.append("<#" + SUPPLY_CHANNEL_ID + ">\n");
-                msg.append("<#" + NEWS_CHANNEL_ID + ">\n");
                 for (MemberUtils.Faction value : MemberUtils.Faction.values()) {
                     msg.append(value.displayName()).append("\n");
                 }
@@ -201,73 +199,73 @@ public class SlashCommandHandler extends ListenerAdapter {
         help.setColor(Color.CYAN);
 
         help.addField("/поставка-нг", """
-        📦 Заказ материалов **армии (NG)** для гос. структур. Используется только армией.
-        **Параметры:**
-        • `destination` — фракция назначения (гос) на выбор
-        • `defenders` — сторона защиты поставки. Пишется английскими буквами, союзы через запятую или пробел: `lssd, fib` ИЛИ `lssd fib`
-        • `time` — время поставки (в формате HH:MM)
-        • `amount` — количество материалов для заказа
-        • `afk` — [необязательно] если надо заказать как AFK-поставку, то надо указать True
-        """, false);
+    📦 Заказ материалов **армии (NG)** для гос. структур. Используется только армией.
+    **Параметры:**
+    • `destination` — фракция назначения (гос) на выбор
+    • `defenders` — фракции стороны защиты (через запятую или пробел)
+    • `time` — время поставки (HH:MM)
+    • `amount` — количество материалов (по умолчанию 20000)
+    • `afk` — [необязательно] AFK или боевая поставка
+    """, false);
 
         help.addField("/поставка-емс", """
-        💉 Заказ аптечек **медслужбы (EMS)** для гос. структур. Используется только EMS
-        **Параметры:**
-        • `destination` — фракция назначения (гос) на выбор
-        • `defenders` — сторона защиты поставки. Пишется английскими буквами, союзы через запятую или пробел: `lssd, fib` ИЛИ `lssd fib`
-        • `time` — время заказа поставки в формате HH:mm
-        • `amount` — количество аптек для заказаа
-        • `afk` — [необязательно] если надо заказать как AFK-поставку, то надо указать True
-        """, false);
+    💉 Заказ аптек **медслужбы (EMS)** для гос. структур. Используется только EMS.
+    **Параметры:**
+    • `destination` — фракция назначения (гос)
+    • `defenders` — фракции стороны защиты
+    • `time` — время (HH:MM)
+    • `amount` — количество аптек (по умолчанию 1500)
+    • `afk` — [необязательно] AFK или боевая
+    """, false);
 
         help.addField("/поставка-спанк", """
-        💼 Заказ спанка (анальгетиков) для **крайм-фракций**.
-        **Параметры:**
-        • `faction` — кто заказывает спанк (прокает его)
-        • `destination` — куда разгружается поставка спанка
-        • `defenders` — сторона защиты поставки. Пишется английскими буквами, союзы через запятую или пробел: `am, lcn, yak`, `lssd pd fib`
-        • `time` — время заказа поставки в формате HH:mm
-        • `amount` — количество спанка
-        • `afk` — [необязательно] заказать как AFK-поставку, надо указать True
-        """, false);
+    💼 Заказ спанка (анальгетиков) для **крайм-фракций**.
+    **Параметры:**
+    • `faction` — кто заказывает спанк
+    • `destination` — куда разгружается поставка
+    • `defenders` — фракции стороны защиты
+    • `time` — время (HH:MM)
+    • `amount` — количество (по умолчанию 1000)
+    • `afk` — [необязательно] AFK или боевая
+    """, false);
 
-        help.addField("/ролл", """
-        🎲 Установить **карту** и **фракцию нападения** на активную поставку.
-        **Параметры:**
-        • `map` — название карты
-        • `attack` — фракция, совершающая атаку. Союзы указываются через запятую: am, lcn или fib, lssd
-        """, false);
+        help.addField("/управление", """
+    🎲 Установить карту и/или фракцию нападения на активную поставку.
+    **Параметры:**
+    • `map` — карта розыгрыша
+    • `attack` — фракция атаки (союзы через запятую)
+    """, false);
 
         help.addField("/результат", """
-        🏁 Установить **результат поставки**.
-        **Параметры:**
-        • `winner` — победила ли защита. Если защита выиграла, указываете true, иначе - false.
-        • `result` — описание результата - на ваше усмотрение
-        """, false);
-
+    🏁 Установить результат и победителя поставки.
+    **Параметры:**
+    • `winner` — Защита или Атака
+    • `result` — описание результата
+    """, false);
         help.addField("/статистика", """
-        📊 Посмотреть статистику поставок **по одной фракции** за последние 7 дней или месяц.
-        **Параметры:**
-        • `faction` — название фракции (напр. LSSD, MM или любая другая)
-        • `period` — период просмотра статистики
-        """, false);
-        help.addField("🔹 /авто-ролл карта", """
-        Случайно выбрать карту из списка.
-        **Параметры:**
-        • `maps` — список карт через запятую.
-        """, false);
+    📊 Посмотреть статистику по фракции.
+    **Параметры:**
+    • `faction` — фракция или тип статистики
+    • `period` — месяц или неделя
+    """, false);
+        help.addField("/авто-ролл карта", """
+    🎯 Случайно выбрать карту.
+    **Параметры:**
+    • `maps` — список карт через запятую
+    """, false);
 
-        help.addField("🔹 /авто-ролл фракция", """
-        Случайно выбрать атакующую фракцию.
-        **Параметры:**
-        • `factions` — список фракций через запятую;
-        • союзы — указывать через `+`, пример: `bsg+esb`. Пример полной строки: `bsg+lcn, ems, fib'
-        """, false);
+        help.addField("/авто-ролл фракция", """
+    🎯 Случайно выбрать атакующую фракцию.
+    **Параметры:**
+    • `factions` — список фракций через запятую
+    • союзы через '+', пример: bsg+esb
+    """, false);
 
+        help.addField("/карта список", "📃 Показать все карты.", false);
         help.setFooter("Бот создан Daniel Powell (sorestforest)");
-
         event.replyEmbeds(help.build()).setEphemeral(true).queue();
     }
+
 
     private void handleDump(SlashCommandInteractionEvent event) {
         event.deferReply(true).queue();
@@ -389,10 +387,10 @@ public class SlashCommandHandler extends ListenerAdapter {
         SupplyManager.Supply supply = new SupplyManager.Supply(type, time, amount, defenderFactions.r, destFaction);
         supply.defenders = defenderFactions.r;
 
-        boolean afkStatus = Boolean.TRUE.equals(event.getOption("afk", OptionMapping::getAsBoolean));
+        boolean afkStatus = Objects.equals(event.getOption("afk", OptionMapping::getAsString), "AFK");
         if (afkStatus) {
             supply.afk = true;
-            supply.result = "";
+            supply.result = "Ожидается причина АФК поставки!";
         }
 
         int check = validateTime(event, time, supply);
@@ -407,7 +405,10 @@ public class SlashCommandHandler extends ListenerAdapter {
         }
 
         SupplyManager.SupplyType finalType = type;
-        event.getHook().sendMessage(buildMessage(supply, check == 1)).queue(sentMessage -> {
+        event.getHook().sendMessage(buildMessage(supply, check == 1))
+                .setAllowedMentions(List.of(Message.MentionType.ROLE))
+                .mentionRoles(CRIME_ROLE_ID, STATE_ROLE_ID)
+                .queue(sentMessage -> {
             SupplyManager.registerSupply(sentMessage.getId(), supply);
             String threadName = isSpank
                     ? "spank-" + defendersStr.toLowerCase() + "(" + destination + ")"
@@ -470,17 +471,21 @@ public class SlashCommandHandler extends ListenerAdapter {
 
             String map = event.getOption("map", OptionMapping::getAsString);
             String attack = event.getOption("attack", OptionMapping::getAsString);
-            if (MapUtils.checkMap(map)) {
-                event.getHook().sendMessage("Указанная карта не найдена в разрешенном списке.").queue();
-                return;
+            if (map != null) {
+                if (MapUtils.checkMap(map)) {
+                    event.getHook().sendMessage("Указанная карта не найдена в разрешенном списке.").queue();
+                    return;
+                }
+                supply.map = map;
             }
-            supply.map = map;
-            ForestPair<Boolean,List<MemberUtils.Faction>> factions = MemberUtils.parseFactions(attack);
-            if (factions.r.isEmpty() || !factions.l) {
-                event.getHook().sendMessage("Не распознано ни одной фракции. Фракции перечисляются через запяту или пробел: AM, LCN или am, lcn").queue();
-                return;
+            if (attack != null) {
+                ForestPair<Boolean,List<MemberUtils.Faction>> factions = MemberUtils.parseFactions(attack);
+                if (factions.r.isEmpty() || !factions.l) {
+                    event.getHook().sendMessage("Не распознано ни одной фракции. Фракции перечисляются через запяту или пробел: AM, LCN или am, lcn").queue();
+                    return;
+                }
+                supply.attackers = factions.r;
             }
-            supply.attackers = factions.r;
             updateEmbed(parentMessage.getId(), supply);
             event.getHook().sendMessage("Данные о поставке обновлены! Удачной игры!").queue();
         });
@@ -492,7 +497,7 @@ public class SlashCommandHandler extends ListenerAdapter {
             return;
         }
 
-        event.deferReply(true).queue();
+        event.deferReply(false).queue();
         event.getChannel().asThreadChannel().retrieveParentMessage().queue(parentMessage -> {
             SupplyManager.Supply supply = getSupplyFromParent(event, parentMessage);
             if (supply == null) return;
@@ -643,7 +648,15 @@ public class SlashCommandHandler extends ListenerAdapter {
         } else {
             days = 7;
         }
-        MessageEmbed statsEmbed = SupplyStats.calculateStats(faction, days);
+        MessageEmbed statsEmbed;
+        if ("General".equals(faction)) {
+            statsEmbed = SupplyStats.calculateGeneralStats(days);
+        } else if ("Map".equals(faction)) {
+            statsEmbed = SupplyStats.calculateMapStats(days);
+        } else {
+            statsEmbed = SupplyStats.calculateStats(faction, days);
+        }
+
         event.getHook().sendMessageEmbeds(statsEmbed).queue();
     }
 
@@ -669,11 +682,34 @@ public class SlashCommandHandler extends ListenerAdapter {
             event.getHook().sendMessage("Не удалось определить поставку! Код ошибки: 02.").setEphemeral(true).queue();
             return null;
         }
-        if (!MemberUtils.isInFaction(Objects.requireNonNull(event.getMember()), supply.type.faction())) {
-            event.getHook().sendMessage("Данная поставка не ваша, обратитесь к " + supply.type.faction() + " для редакции информации.").queue();
+        if (!canManipulateSupply(supply, event.getMember())) {
+            event.getHook()
+                    .sendMessage("Данная поставка не ваша, обратитесь к " + supply.type.faction().displayName() + "/" +
+                            supply.destination.displayName()+"/"+supply.getDefendersDisplay(false)+" для редакции информации.").queue();
             return null;
         }
         return supply;
+    }
+
+    private boolean canManipulateSupply(SupplyManager.Supply supply, Member member) {
+        if (MemberUtils.isInFaction(member, supply.destination) || MemberUtils.isInFaction(member, supply.type.faction())) {
+            return true;
+        }
+        if (supply.defenders != null) {
+            for (MemberUtils.Faction defender : supply.defenders) {
+                if (MemberUtils.isInFaction(member, defender)) {
+                    return true;
+                }
+            }
+        }
+        if (supply.attackers != null) {
+            for (MemberUtils.Faction attacker : supply.attackers) {
+                if (MemberUtils.isInFaction(member, attacker)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private MessageEmbed buildEmbed(SupplyManager.Supply supply) {
@@ -730,13 +766,13 @@ public class SlashCommandHandler extends ListenerAdapter {
         MessageEmbed embed = buildEmbed(supply);
         MessageCreateBuilder builder = new MessageCreateBuilder();
         builder.setEmbeds(embed);
-        String message = String.format("<@&%s> <@&%s>", CRIME_ROLE_ID, STATE_ROLE_ID);
+        String message = MemberUtils.CRIME_ROLE.getAsMention() + " " + MemberUtils.STATE_ROLE.getAsMention();
         if (pingModerators){
             message += " ";
             message += String.format("<@&%s>", MODERATOR_ROLE_ID);
         }
         builder.setContent(message);
-        return builder.build();
+        return builder.setAllowedMentions(EnumSet.allOf(Message.MentionType.class)).build();
     }
 
     private void updateEmbed(String messageID, SupplyManager.Supply supply) {

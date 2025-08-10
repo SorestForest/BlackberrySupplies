@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="b24d8449-38c2-4003-af63-45bee5c0b699" name="Swimer's machine">
+        <fileTransfer rootFolder="/var/forest/bot" accessType="SFTP" host="5.9.154.90" port="22" sshConfigId="89d3870a-cbd9-45db-8307-2de03be1963f" sshConfig="root@5.9.154.90:22 password">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>
