@@ -404,25 +404,32 @@ public class SlashCommandHandler extends ListenerAdapter {
             return;
         }
 
-        SupplyManager.SupplyType finalType = type;
-        event.getHook().sendMessage(buildMessage(supply, check == 1))
-                .setAllowedMentions(EnumSet.of(Message.MentionType.ROLE))
+
+        SupplyManager.SupplyType finalType = supply.type;
+        /**/
+        event.getHook().sendMessage(buildMessage(supply))
                 .queue(sentMessage -> {
                     SupplyManager.registerSupply(sentMessage.getId(), supply);
                     String threadName = isSpank
                             ? "spank-" + defendersStr.toLowerCase() + "(" + destination + ")"
                             : finalType.name().toLowerCase() + "-" + destination.toLowerCase();
+
                     sentMessage.createThreadChannel(threadName).queue(thread -> {
+                        String message = MemberUtils.CRIME_ROLE.getAsMention() + " " + MemberUtils.STATE_ROLE.getAsMention();
+                        if (check == 1){
+                            message += " ";
+                            message += String.format("<@&%s>", MODERATOR_ROLE_ID);
+                        }
                         thread.sendMessage("Ветка создана для обсуждения поставки " + finalType.displayName() + " для " + destFaction.displayName()
-                                + ". Защищают: "+supply.getDefendersDisplay(false) + "\n" + MemberUtils.CRIME_ROLE.getAsMention() + " " + MemberUtils.STATE_ROLE.getAsMention() ).queue();
+                                + ". Защищают: "+supply.getDefendersDisplay(false) + "\n" + message).queue();
 
                         if (supply.afk) {
                             String afkMention = isSpank ? supply.getDefendersDisplay(false) : destFaction.displayName();
                             thread.sendMessage("⚠️ Поставка была заказана как **AFK**. У фракции заказчика и **" + afkMention +
-                            "** есть **5 минут** на указание причины AFK-поставки, иначе она будет считаться **заказанной не по правилам**. Ссылку можно указать с помощью команды /результат, winner указывайте как Защита.").queue();
+                                    "** есть **5 минут** на указание причины AFK-поставки, иначе она будет считаться **заказанной не по правилам**. Ссылку можно указать с помощью команды /результат, winner указывайте как Защита.").queue();
                         }
-            });
-        });
+                    });
+                });
     }
 
     private int validateTime(SlashCommandInteractionEvent event, String time, SupplyManager.Supply supply) {
@@ -761,17 +768,11 @@ public class SlashCommandHandler extends ListenerAdapter {
     }
 
     @NotNull
-    private MessageCreateData buildMessage(SupplyManager.Supply supply, boolean pingModerators) {
+    private MessageCreateData buildMessage(SupplyManager.Supply supply) {
         MessageEmbed embed = buildEmbed(supply);
         MessageCreateBuilder builder = new MessageCreateBuilder();
         builder.setEmbeds(embed);
-        String message = MemberUtils.CRIME_ROLE.getAsMention() + " " + MemberUtils.STATE_ROLE.getAsMention();
-        if (pingModerators){
-            message += " ";
-            message += String.format("<@&%s>", MODERATOR_ROLE_ID);
-        }
-        builder.setContent(message);
-        return builder.setAllowedMentions(EnumSet.allOf(Message.MentionType.class)).build();
+        return builder.build();
     }
 
     private void updateEmbed(String messageID, SupplyManager.Supply supply) {
