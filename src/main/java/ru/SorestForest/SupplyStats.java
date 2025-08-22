@@ -12,6 +12,9 @@ import java.util.*;
 
 public class SupplyStats {
 
+
+
+
     public static MessageEmbed calculateStats(String factionStr, int period) {
         if (factionStr == null || factionStr.isEmpty()) {
             return errorEmbed("Фракция не указана.");
@@ -34,12 +37,13 @@ public class SupplyStats {
         int attacked = 0;
         int attackedWon = 0;
         int attackedLost = 0;
-
+        SupplyManager.Leader leader = SupplyManager.leaderData.get(f);
         for (var supply : getSuppliesForPeriod(period)) {
             assert f != null;
             boolean isDestination = f.equals(supply.destination);
             boolean isDefender = supply.defenders != null && supply.defenders.contains(f);
             boolean isAttacker = supply.attackers != null && supply.attackers.contains(f);
+            if (supply.timeEnded.isBefore(leader.dateAssigned)) {  continue; }
 
             if (isDestination) {
                 totalOrganized++;
@@ -178,7 +182,6 @@ public class SupplyStats {
                 .atZone(ZoneId.of("Europe/Moscow"))
                 .minusDays(period)
                 .toLocalDateTime();
-
         List<SupplyManager.Supply> supplies = new ArrayList<>();
         for (var supply : SupplyManager.data.values()) {
             if (!supply.ended) continue;

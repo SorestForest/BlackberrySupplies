@@ -19,6 +19,8 @@ public class MemberUtils {
     public static Role MODERATOR_ROLE;
     public static Role DEPLEADER_ROLE;
     public static Role DEVELOPER_ROLE;
+    public static Role LEADER_CRIME_ROLE;
+    public static Role LEADER_STATE_ROLE;
 
     public static Role CRIME_ROLE;
     public static Role STATE_ROLE;
@@ -46,6 +48,8 @@ public class MemberUtils {
         MODERATOR_ROLE = BotStarter.API.getRoleById(MODERATOR_ROLE_ID);
         DEPLEADER_ROLE = BotStarter.API.getRoleById(DEPLEADER_ROLE_ID);
         DEVELOPER_ROLE = BotStarter.API.getRoleById(DEVELOPER_ROLE_ID);
+        LEADER_CRIME_ROLE = BotStarter.API.getRoleById(LEADER_CRIME_ROLE_ID);
+        LEADER_STATE_ROLE = BotStarter.API.getRoleById(LEADER_STATE_ROLE_ID);
 
         CRIME_ROLE = BotStarter.API.getRoleById(CRIME_ROLE_ID);
         STATE_ROLE = BotStarter.API.getRoleById(STATE_ROLE_ID);
@@ -245,6 +249,13 @@ public class MemberUtils {
             return switch (this) {
                 case AM, RM, YAK, LCN, MM -> true;
                 default -> false;
+            };
+        }
+
+        public boolean isCrime() {
+            return switch(this) {
+                case NG, EMS, GOV, LSPD, FIB, LSSD, SASPA -> false;
+                default -> true;
             };
         }
 

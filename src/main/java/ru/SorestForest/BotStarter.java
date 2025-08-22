@@ -76,9 +76,6 @@ public class BotStarter {
                         .addOptions(allFactionsOption())
                         .addOptions(dateOption()))
                 .addCommands(Commands.slash("save","[Модератор] Сохранет статистику поставок"))
-                .addCommands(Commands.slash("clearmembers","[Модератор] Снимает лидера и все роли его состава")
-                        .addOption(OptionType.STRING,"faction","Фракция для снятия", true)
-                        .addOption(OptionType.USER,"leader","Лидер для снятия и уведомления", true))
                 .addCommands(Commands.slash("cancel","[Модератор] Отменяет данную поставку, удаляет данные из базы."))
                 .addCommands(Commands.slash("помощь","Показать информацию об использовании бота").setContexts(InteractionContextType.GUILD))
                 .addCommands(Commands.slash("dump-data", "[Модератор] Выписать много разной информции о поставке."))
@@ -93,6 +90,11 @@ public class BotStarter {
                                 new SubcommandData("список","Список всех текущих карт")
                         ))
                 .addCommands(Commands.slash("whoami","who am i??"))
+                .addCommands(Commands.slash("лидер","Управление/информация о лидерах")
+                        .addSubcommands(new SubcommandData("назначить","Назначить лидера фракции, выдает также ему все нужные роли")
+                                .addOptions(factionsOption(), new OptionData(OptionType.USER,"leader","Лидер для назначения",true)),
+                                new SubcommandData("список", "Информация о лидерах сервера"),
+                                new SubcommandData("снять","Снять лидера и его фракцию, состав (очистка ролей)").addOptions(factionsOption())))
                 .queue();
         API.awaitReady();
         MemberUtils.setup();
@@ -103,9 +105,17 @@ public class BotStarter {
     }
 
     private static OptionData allFactionsOption() {
-        OptionData data = new OptionData(OptionType.STRING,"faction","Тип статистики для просмотра.", true);
+        OptionData data = new OptionData(OptionType.STRING,"faction","Тип статистики для просмотра", true);
         data.addChoice("General","General");
         data.addChoice("Map","Map");
+        for (MemberUtils.Faction value : MemberUtils.Faction.values()) {
+            data.addChoice(value.name(), value.name());
+        }
+        return data;
+    }
+
+    private static OptionData factionsOption() {
+        OptionData data = new OptionData(OptionType.STRING,"faction","Фракция", true);
         for (MemberUtils.Faction value : MemberUtils.Faction.values()) {
             data.addChoice(value.name(), value.name());
         }
@@ -116,7 +126,7 @@ public class BotStarter {
     public static OptionData factionGov() {
         OptionData option = new OptionData(OptionType.STRING, "destination", "Фракция, в которую направляется поставка", true);
         for (MemberUtils.Faction faction : MemberUtils.Faction.values()) {
-            if (isGovFaction(faction)) {
+            if (!faction.isCrime()) {
                 option.addChoice(faction.name(), faction.name());
             }
         }
@@ -140,11 +150,6 @@ public class BotStarter {
         return option;
     }
 
-    private static boolean isGovFaction(MemberUtils.Faction faction) {
-        return switch(faction) {
-            case NG, EMS, GOV, LSPD, FIB, LSSD, SASPA -> true;
-            default -> false;
-        };
-    }
+
 
 }

@@ -3,24 +3,61 @@ package ru.SorestForest;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
+import net.dv8tion.jda.api.EmbedBuilder;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
+import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
+import net.dv8tion.jda.api.interactions.commands.OptionMapping;
 import org.jetbrains.annotations.NotNull;
+import ru.SorestForest.serializers.LocalDateTimeAdapter;
 
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.awt.*;
+import java.io.*;
 import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.*;
 
 public class SupplyManager {
 
     public static final HashMap<String, Supply> data = new HashMap<>();
+    public static final HashMap<MemberUtils.Faction, Leader> leaderData = new HashMap<>();
+
+    // Сохранение данных
+    public static void saveLeaderData(Gson gson) throws IOException {
+        File file = new File("saved" + File.separatorChar + "leaders.json");
+
+        try (Writer writer = new FileWriter(file)) {
+            gson.toJson(leaderData, writer);
+        }
+    }
+
+    // Загрузка данных
+    public static void loadLeaderData(Gson gson) throws IOException {
+        File file = new File("saved" + File.separatorChar + "leaders.json");
+        if (!file.exists()) return;
+
+
+        Type type = new TypeToken<HashMap<MemberUtils.Faction, Leader>>() {}.getType();
+
+        try (Reader reader = new FileReader(file)) {
+            HashMap<MemberUtils.Faction, Leader> loaded = gson.fromJson(reader, type);
+            leaderData.clear();
+            if (loaded != null) {
+                leaderData.putAll(loaded);
+                System.out.println("Загружена информация о "+ leaderData.size() + " лидерах!");
+            } else {
+                System.err.println("Не удалось загрузить информацию о лидерах!");
+            }
+        }
+    }
 
     public static TextChannel SUPPLY_CHANNEL;
 
@@ -53,6 +90,7 @@ public class SupplyManager {
         // 3. Сохраняем JSON
         try (FileWriter writer = new FileWriter(fileName)) {
             gson.toJson(data, writer);
+            saveLeaderData(gson);
             System.out.println("Поставки успешно сохранены в файл: " + fileName);
         } catch (IOException e) {
             System.err.println("Ошибка при сохранении данных: " + e.getMessage());
@@ -83,7 +121,7 @@ public class SupplyManager {
             Gson gson = new GsonBuilder()
                     .registerTypeAdapter(LocalDateTime.class, new LocalDateTimeAdapter())
                     .create();
-
+            loadLeaderData(gson);
             Type type = new TypeToken<HashMap<String, Supply>>() {}.getType();
             HashMap<String, Supply> loadedData = gson.fromJson(reader, type);
 
@@ -109,7 +147,7 @@ public class SupplyManager {
         for (File file : files) {
             try {
                 Instant fileTime = Files.getLastModifiedTime(file.toPath()).toInstant();
-                if (ChronoUnit.DAYS.between(fileTime, now) > 31) {
+                if (ChronoUnit.DAYS.between(fileTime, now) > 62) {
                     if (file.delete()) {
                         deletedCount++;
                         System.out.println("Удалён устаревший файл: " + file.getName());
@@ -125,7 +163,6 @@ public class SupplyManager {
             System.out.println("Удалено старых файлов: " + deletedCount);
         }
     }
-
 
     public static class Supply {
         public SupplyType type;
@@ -171,8 +208,6 @@ public class SupplyManager {
 
     }
 
-
-
     public enum SupplyType {
         EMS, NG, SPANK_MM, SPANK_LCN, SPANK_RM, SPANK_YAK, SPANK_AM, SPANK_BLANK;
 
@@ -194,6 +229,94 @@ public class SupplyManager {
             return toString().replace("_"," ");
         }
 
+    }
+
+    public static class Leader {
+        public String leaderID;
+        public MemberUtils.Faction faction;
+        public LocalDateTime dateAssigned;
+
+        public Leader(String leaderID, MemberUtils.Faction faction, LocalDateTime dateAssigned) {
+            this.leaderID = leaderID;
+            this.faction = faction;
+            this.dateAssigned = dateAssigned;
+        }
+    }
+
+    public static void handleLeaderCommand(SlashCommandInteractionEvent event) {
+        if (Objects.equals(event.getSubcommandName(), "список")) {
+            EmbedBuilder embed = new EmbedBuilder();
+            embed.setTitle("📋 Список лидеров фракций");
+            embed.setColor(Color.CYAN);
+            embed.setTimestamp(Instant.now());
+
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm");
+
+            if (leaderData.isEmpty()) {
+                embed.setDescription("⚠️ Лидеры ещё не назначены.");
+            } else {
+                for (var entry : leaderData.entrySet()) {
+                    MemberUtils.Faction faction = entry.getKey();
+                    Leader leader = entry.getValue();
+
+                    String leaderInfo = String.format(
+                            "**ID:** %s\n**Дата назначения:** %s",
+                            leader.leaderID != null ? leader.leaderID : "—",
+                            leader.dateAssigned != null ? leader.dateAssigned.format(formatter) : "—"
+                    );
+
+                    embed.addField(faction.name(), leaderInfo, false);
+                }
+            }
+
+            event.replyEmbeds(embed.build()).queue();
+        } else if (Objects.equals(event.getSubcommandName(), "назначить")) {
+            if (!MemberUtils.isModerator(Objects.requireNonNull(event.getMember()))) {
+                event.reply("Нет доступа к данной команде.").setEphemeral(true).queue();
+                return;
+            }
+            MemberUtils.Faction faction = MemberUtils.toFaction(event.getOption("faction", OptionMapping::getAsString));
+            Member leader = event.getOption("leader",OptionMapping::getAsMember);
+            LocalDateTime time = LocalDateTime.now(ZoneId.of("Europe/Moscow"));
+            assert leader != null;
+            Leader data = new Leader(leader.getId(), faction, time);
+            assert faction != null;
+            leader.getGuild().addRoleToMember(leader, faction.asRole()).queue();
+            if (faction.isCrime()) {
+                leader.getGuild().addRoleToMember(leader, MemberUtils.LEADER_CRIME_ROLE).reason("Назначение // "+event.getMember().getId()).queue();
+            } else {
+                leader.getGuild().addRoleToMember(leader, MemberUtils.LEADER_STATE_ROLE).reason("Назначение // "+event.getMember().getId()).queue();
+            }
+            leaderData.put(faction, data);
+            event.reply("Лидер " + faction.displayName() + " назначен как " + leader.getAsMention()).queue();
+        } else if ("снять".equals(event.getSubcommandName())){
+            if (!MemberUtils.isModerator(Objects.requireNonNull(event.getMember()))) {
+                event.reply("Нет доступа к данной команде.").setEphemeral(true).queue();
+                return;
+            }
+            MemberUtils.Faction faction = MemberUtils.toFaction(event.getOption("faction", OptionMapping::getAsString));
+            leaderData.remove(faction);
+            assert faction != null;
+            Role factionRole = faction.asRole();
+            if (factionRole == null) {
+                event.reply("Роль фракции не найдена!").setEphemeral(true).queue();
+                return;
+            }
+
+            Objects.requireNonNull(event.getGuild()).loadMembers().onSuccess(members -> {
+                List<Member> filtered = members.stream().filter(m -> m.getUnsortedRoles().contains(factionRole)).toList();
+                Guild guild = event.getGuild();
+                for (Member member : filtered) {
+                    for (MemberUtils.Faction f : MemberUtils.Faction.values()) {
+                        guild.removeRoleFromMember(member, f.asRole()).reason("Снятие лидера // "+event.getMember().getId()).queue();
+                    }
+                    guild.removeRoleFromMember(member, MemberUtils.SUPPLY_ROLE).queue();
+                    guild.removeRoleFromMember(member, MemberUtils.DEPLEADER_ROLE).queue();
+                }
+                event.reply("Роли фракции " + faction.name() + " успешно сняты у "+ filtered.size() + " игроков")
+                        .setEphemeral(true).queue();
+            });
+        }
     }
 
 }

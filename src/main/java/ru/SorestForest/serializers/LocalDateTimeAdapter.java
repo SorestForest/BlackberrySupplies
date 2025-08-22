@@ -1,4 +1,4 @@
-package ru.SorestForest;
+package ru.SorestForest.serializers;
 
 import com.google.gson.*;
 

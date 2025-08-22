@@ -14,6 +14,8 @@ public class Settings {
     public static final String CRIME_ROLE_ID = "1328810239750836247";
     public static final String STATE_ROLE_ID = "1329419976506871888";
     public static final String DEVELOPER_ROLE_ID = "1403101800512491712";
+    public static final String LEADER_CRIME_ROLE_ID = "1392984825815760977";
+    public static final String LEADER_STATE_ROLE_ID = "1328810239784652872";
 
     public static String LSV_ID = "1329421067910910043";
     public static String ESB_ID = "1329421377937080412";

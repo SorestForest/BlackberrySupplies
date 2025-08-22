@@ -1,11 +1,10 @@
 package ru.SorestForest;
 
 import net.dv8tion.jda.api.EmbedBuilder;
-import net.dv8tion.jda.api.components.actionrow.ActionRow;
-import net.dv8tion.jda.api.components.buttons.Button;
-import net.dv8tion.jda.api.entities.*;
+import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.Message;
+import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
-import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.commands.OptionMapping;
 import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
@@ -15,6 +14,7 @@ import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 
 import java.awt.*;
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
@@ -39,7 +39,7 @@ public class SlashCommandHandler extends ListenerAdapter {
             case "update" -> handleUpdate(event);
             case STATS_COMMAND -> handleStats(event);
             case "save" -> handleSave(event);
-            case "clearmembers" -> handleCleanMembers(event);
+            case "лидер" -> SupplyManager.handleLeaderCommand(event);
             case "cancel" -> handleCancel(event);
             case "помощь" -> handleHelpCommand(event);
             case "dump-data" -> handleDump(event);
@@ -127,6 +127,8 @@ public class SlashCommandHandler extends ListenerAdapter {
         });
     }
 
+    private static final SecureRandom secureRandom = new SecureRandom();
+
     private void handleRollFactions(SlashCommandInteractionEvent event) {
         event.deferReply(false).queue();
         if (!event.getChannelType().isThread()) {
@@ -169,7 +171,7 @@ public class SlashCommandHandler extends ListenerAdapter {
                 return;
             }
 
-            supply.attackers = factions.get(ThreadLocalRandom.current().nextInt(factions.size()));
+            supply.attackers = factions.get(secureRandom.nextInt(0, factions.size()));
 
 
 
@@ -334,7 +336,7 @@ public class SlashCommandHandler extends ListenerAdapter {
     }
 
     private void handleSupply(SlashCommandInteractionEvent event, SupplyManager.SupplyType type) {
-        event.deferReply(false).queue();
+        event.deferReply(false).setAllowedMentions(EnumSet.allOf(Message.MentionType.class)).queue();
 
         if (validatePermissions(event)) return;
 
@@ -404,10 +406,16 @@ public class SlashCommandHandler extends ListenerAdapter {
             return;
         }
 
+        String message = MemberUtils.CRIME_ROLE.getAsMention() + " " + MemberUtils.STATE_ROLE.getAsMention();
+        if (check == 1){
+            message += " ";
+            message += String.format("<@&%s>", MODERATOR_ROLE_ID);
+        }
 
         SupplyManager.SupplyType finalType = supply.type;
         /**/
         event.getHook().sendMessage(buildMessage(supply))
+                .setContent(message)
                 .queue(sentMessage -> {
                     SupplyManager.registerSupply(sentMessage.getId(), supply);
                     String threadName = isSpank
@@ -415,13 +423,9 @@ public class SlashCommandHandler extends ListenerAdapter {
                             : finalType.name().toLowerCase() + "-" + destination.toLowerCase();
 
                     sentMessage.createThreadChannel(threadName).queue(thread -> {
-                        String message = MemberUtils.CRIME_ROLE.getAsMention() + " " + MemberUtils.STATE_ROLE.getAsMention();
-                        if (check == 1){
-                            message += " ";
-                            message += String.format("<@&%s>", MODERATOR_ROLE_ID);
-                        }
+
                         thread.sendMessage("Ветка создана для обсуждения поставки " + finalType.displayName() + " для " + destFaction.displayName()
-                                + ". Защищают: "+supply.getDefendersDisplay(false) + "\n" + message).queue();
+                                + ". Защищают: "+supply.getDefendersDisplay(false) + "\n").queue();
 
                         if (supply.afk) {
                             String afkMention = isSpank ? supply.getDefendersDisplay(false) : destFaction.displayName();
@@ -568,79 +572,6 @@ public class SlashCommandHandler extends ListenerAdapter {
             updateEmbed(parentMessage.getId(), supply);
             event.getHook().sendMessage("Поставка обновлена.").queue();
         });
-    }
-
-    // Добавь поле для временного хранения выбора фракции для подтверждения
-    private final HashMap<String, ForestPair<String,String>> cleanMembersConfirmations = new HashMap<>();
-    // Ключ — ID пользователя (модератора), значение — фракция для очистки
-
-    private void handleCleanMembers(SlashCommandInteractionEvent event) {
-        if (!MemberUtils.isModerator(Objects.requireNonNull(event.getMember()))) {
-            event.reply("Команда доступна только модераторам.").setEphemeral(true).queue();
-            return;
-        }
-
-        String factionName = event.getOption("faction", OptionMapping::getAsString);
-        if (factionName == null) {
-            event.reply("Укажите фракцию.").setEphemeral(true).queue();
-            return;
-        }
-
-        MemberUtils.Faction faction;
-        try {
-            faction = MemberUtils.Faction.valueOf(factionName.toUpperCase());
-        } catch (IllegalArgumentException e) {
-            event.reply("Неизвестная фракция: " + factionName).setEphemeral(true).queue();
-            return;
-        }
-        cleanMembersConfirmations.put(event.getUser().getId(), ForestPair.of(faction.name(),"verify"));
-        event.reply("Вы уверены, что хотите снять роли фракции **" + faction.name() + "** у всех участников? Это действие нельзя отменить.")
-                .addComponents(
-                        ActionRow.of(Button.danger("cleanmembers_confirm", "Подтвердить"),
-                                Button.secondary("cleanmembers_cancel", "Отмена"))
-                )
-                .setEphemeral(true)
-                .queue();
-    }
-
-    @Override
-    public void onButtonInteraction(ButtonInteractionEvent event) {
-        if (event.getComponentId().equals("cleanmembers_confirm")) {
-            String userId = event.getUser().getId();
-            if (!cleanMembersConfirmations.containsKey(userId)) {
-                event.reply("Подтверждение не найдено или устарело. Повторите команду.").setEphemeral(true).queue();
-                return;
-            }
-            String factionName = cleanMembersConfirmations.get(userId).l;
-            cleanMembersConfirmations.remove(userId);
-
-            MemberUtils.Faction faction = MemberUtils.Faction.valueOf(factionName);
-            Role factionRole = faction.asRole();
-            if (factionRole == null) {
-                event.reply("Роль фракции не найдена!").setEphemeral(true).queue();
-                return;
-            }
-
-            Objects.requireNonNull(event.getGuild()).loadMembers().onSuccess(members -> {
-                List<Member> filtered = members.stream().filter(m -> m.getUnsortedRoles().contains(factionRole)).toList();
-                Guild guild = event.getGuild();
-                for (Member member : filtered) {
-                    for (MemberUtils.Faction f : MemberUtils.Faction.values()) {
-                        guild.removeRoleFromMember(member, f.asRole()).queue();
-                    }
-                    guild.removeRoleFromMember(member, MemberUtils.SUPPLY_ROLE).queue();
-                    guild.removeRoleFromMember(member, MemberUtils.DEPLEADER_ROLE).queue();
-                }
-                event.reply("Роли фракции " + faction.name() + " успешно сняты у "+ filtered.size() + " игроков")
-                        .setEphemeral(true).queue();
-            });
-
-
-
-        } else if (event.getComponentId().equals("cleanmembers_cancel")) {
-            cleanMembersConfirmations.remove(event.getUser().getId());
-            event.reply("Очистка ролей отменена.").setEphemeral(true).queue();
-        }
     }
 
 
